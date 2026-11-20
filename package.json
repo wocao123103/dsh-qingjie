@@ -1,0 +1,62 @@
+{
+  "name": "@wocao123103/dsh-qingjin",
+  "version": "0.12.1",
+  "description": "【本地插件】青衿科研：论文骨架与成稿模板、英文句式与术语、段落/译文诊断、PDF 精读出 md+pdf、同方向论文检索（唯一联网）、18 阶段任务路由与去 AI 味检查。",
+  "type": "module",
+  "license": "MIT",
+  "author": "wocao123103",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wocao123103/dsh-qingjie.git"
+  },
+  "homepage": "https://github.com/wocao123103/dsh-qingjie#readme",
+  "bugs": {
+    "url": "https://github.com/wocao123103/dsh-qingjie/issues"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "data",
+    "lib",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "docs",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "skills"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "academic-writing",
+    "imrad",
+    "cars",
+    "paper",
+    "university",
+    "dlut"
+  ],
+  "private": true
+}

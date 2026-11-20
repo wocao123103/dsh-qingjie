@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "caveat": "以下是课程论文与本科毕业论文最常见的规范，不是某一所学校的强制标准；提交前以学院/期刊当年的模板为准。",
+  "skeleton": {
+    "title": "骨架生成规则",
+    "oneLine": "一篇只讲一个贡献；标题就是这句贡献的陈述句。",
+    "rules": [
+      "标题：对象 + 方法/机制 + 结果方向，能改写成「主语+动词+结果」的陈述句；不用问句、不用「初探」。",
+      "摘要：背景 1 句 → 目标 1 句 → 方法 1–2 句 → 结果 2–3 句（必须含数字与对照）→ 结论 1 句；不放引用、不展开论证。",
+      "引言：CARS 三步 —— 建立领域（中心性+前人工作）→ 建立空白（however/few studies/remains unclear）→ 占据空白（本文做了什么）。",
+      "方法：过去时；数据、设置、流程、统计四块齐全，保证他人可复现。",
+      "结果：过去时；一段一个小标题（陈述句），段末一句结论，可被下一段当作前提；不写 because/therefore。",
+      "讨论：现在时；结果总结 → 局限（validity threats）→ 与前人比较 → 机制 → 前瞻；主动写局限。",
+      "结论：回答研究问题 + 意义 + 可执行的下一步；不引入新数据。",
+      "篇幅预算（5000 词为例）：摘要 5%、引言 15%、方法 20%、结果 30%、讨论 25%、结论 5%。",
+      "时态：引言现在时、方法过去时、结果过去时、讨论现在时。"
+    ]
+  },
+  "typography": {
+    "zh": {
+      "title": "中文论文排版（Word 常用）",
+      "rules": [
+        "纸张与页边距：A4；上下 2.54 cm，左右 3.17 cm（或上下左右均 2.5 cm）。",
+        "正文：中文宋体小四（12 pt），英文 Times New Roman 12 pt；行距 1.5 倍或固定值 20 磅；首行缩进 2 字符。",
+        "一级标题：黑体三号（16 pt），居中；二级标题：黑体四号（14 pt）；三级标题：黑体小四（12 pt）。",
+        "摘要：标题「摘要」黑体小四居中；正文宋体小四；关键词 3–5 个，用分号隔开。",
+        "图：图题在图下方，宋体五号居中，编号「图 1」；表：表题在表上方，用三线表。",
+        "数字与单位：量与单位之间空一格（如 12 mm）；百分号紧跟数字（如 31.43%）。",
+        "参考文献：GB/T 7714 格式，作者. 题名[J]. 刊名, 年, 卷(期): 起止页码。",
+        "页码：页脚居中，正文用阿拉伯数字连续编号。"
+      ]
+    },
+    "en": {
+      "title": "English paper layout (journal submission)",
+      "rules": [
+        "Page: A4 or US Letter; margins 1 inch (2.54 cm) on all sides.",
+        "Body: Times New Roman 12 pt, double-spaced, left-aligned (not justified), first line indented 0.5 inch.",
+        "Headings: bold, 14 pt for level 1, 12 pt bold for level 2; numbering per venue style.",
+        "Figures: caption below the figure, sentence case, ending without a period; tables: caption above, three-line style.",
+        "Numbers: space between value and unit (12 mm); percent sign attached (31.43%).",
+        "References: venue style (IEEE numeric or APA author-year); keep one style throughout.",
+        "Page numbers: bottom centre for manuscripts, or per venue template."
+      ]
+    }
+  },
+  "writingPatterns": {
+    "title": "八篇样本的共同写法（CVPR/ECCV/AAAI/ICML）",
+    "rules": [
+      "标题：几乎都是「方法名缩写: 修饰语 for 任务」结构（IDEA / FUSE / STMI / Signal / CoT / INSPI），方法名进标题便于被引用。",
+      "摘要：1 句问题 + 1 句 However 空白 + 1 句方法 + 结果（带数字）+ 结论，样本在 180–230 词之间（AAAI 更短，约 150–200 词）。",
+      "引言：标准 CARS；结尾贡献固定 3 条，顺序常为「数据/基准 → 方法模块 → 实验验证」。",
+      "方法：3.x 编号子节；先给一张总览图（图 1 常是 motivation 或 framework），再逐个模块展开，末尾统一写损失函数。",
+      "实验：数据集与评测协议 → 实现细节（硬件、batch、输入尺寸、优化器）→ 主表 → 消融（多出现在表 3/4）→ 可视化。",
+      "表格：最优加粗、次优下划线，并在题注里写明这一约定。",
+      "参考文献：CVPR/ECCV 用编号 [1]；AAAI/ICML 用作者-年份。",
+      "近年多数样本都单设 Limitations 或 Broader Impact，审稿人会把「没有局限」当成缺点。"
+    ]
+  },
+  "venues": {
+    "note": "以下字段来自本次 8 篇样本的实测（pdfinfo/pdffonts + 版面观察），页数为样本实际页数；正式投稿上限以当年 CFP 为准。",
+    "cvpr": {
+      "name": "CVPR / ICCV",
+      "template": "官方 LaTeX 模板（cvpr.sty，双栏）",
+      "bodyFont": "Times / Nimbus Roman 10 pt",
+      "columns": 2,
+      "captions": "Figure 1. … / Table 1. …（句点；图题在图下，表题在表上）",
+      "references": "编号制 [1]",
+      "abstractWords": "约 190–230 词",
+      "observedPages": "样本 10 页（含参考文献）",
+      "headings": "1 Introduction / 2 Related Work / 3 Method / 4 Experiments / 5 Conclusion",
+      "notes": "补充材料单独提交；图 1 通常是动机图或框架图；正文 8 页是常见上限。"
+    },
+    "eccv": {
+      "name": "ECCV",
+      "template": "Springer LNCS（llncs，双栏）",
+      "bodyFont": "Springer 模板字体（SFRM/SFBX 系列）",
+      "columns": 2,
+      "captions": "Fig. 1: … / Table 1: …（冒号）",
+      "references": "编号制 [1]",
+      "abstractWords": "约 180 词",
+      "observedPages": "样本 18 页（含附录）",
+      "headings": "1 Introduction / 2 Related Work / 3 Method / 4 Experiments",
+      "notes": "相机版正文通常 14 页 + 参考文献；附录不计入正文。"
+    },
+    "aaai": {
+      "name": "AAAI",
+      "template": "AAAI Press 模板（aaai 样式，双栏）",
+      "bodyFont": "Times / Nimbus Roman 10 pt",
+      "columns": 2,
+      "captions": "Figure 1: …（冒号）/ Table 1. …",
+      "references": "作者-年份（Author, Year）",
+      "abstractWords": "约 150–200 词，常为单段",
+      "observedPages": "样本 9 页（含参考文献与附录）",
+      "headings": "1 Introduction / 2 Related Work / 3 Method / 4 Experiments",
+      "notes": "技术附录可另附；近年要求写清伦理与可复现信息，以当年 CFP 为准。"
+    },
+    "icml": {
+      "name": "ICML",
+      "template": "PMLR 模板（icml 样式，双栏）",
+      "bodyFont": "Times 10 pt",
+      "columns": 2,
+      "captions": "Figure 1. …（句点）",
+      "references": "作者-年份",
+      "abstractWords": "约 200 词",
+      "observedPages": "样本 13 页（含附录）",
+      "headings": "1 Introduction / 2 Related Work / 3 Method / 4 Experiments",
+      "notes": "PMLR 常要求 Broader Impact / Limitations 章节；正文页数上限看当年 CFP。"
+    }
+  },
+  "sciLayout": {
+    "title": "SCI 期刊排版要点（图与表的实操）",
+    "rules": [
+      { "text": "图的分辨率：位图（照片、热图）按 300 dpi 起，线条图用矢量（PDF/EPS/SVG）优先；缩放后字高不得小于 8 pt。", "source": "IEEE Author Center · Graphics" },
+      { "text": "颜色不可作为唯一区分手段：同时用线型（实线/虚线）与点形状编码，并做一次灰度打印自检。", "source": "IEEE Author Center · Graphics（色觉缺陷提示）" },
+      { "text": "折线图：每条线加粗并配唯一数据点符号，把数据标签贴在线上，而不是只靠图例颜色。", "source": "IEEE Author Center · Graphics" },
+      { "text": "图注写「是什么 + 怎么做」，图题给结论；表格用三线表，单位写在表头而不是每格重复。", "source": "通用期刊实践 + 本次 8 篇样本版面" },
+      { "text": "表格跨页会断行：宁可拆成两张表，也不要让一张表跨两栏或两页。", "source": "通用期刊实践" },
+      { "text": "参考文献用 EndNote/Zotero 统一导出，作者名缩写、卷期页码格式必须全篇一致；改格式不要手改条目。", "source": "通用期刊实践" },
+      { "text": "不要改期刊模板的页边距与字号「让自己好看一点」——格式审查第一步就是查这个。", "source": "通用期刊实践" },
+      { "text": "正文里的数字与单位：值与单位之间空一格（12 mm），百分号紧跟数字（31.43%），量符号用斜体、单位用正体。", "source": "通用期刊实践" }
+    ],
+    "note": "标注了来源的条目来自可核对的官方指南；其余为通行实践，投稿前以目标期刊的 Author Guidelines 为准。"
+  },
+  "latex": {
+    "title": "LaTeX 模板的默认设置",
+    "rules": [
+      "中文：ctexart 11pt，A4，页边距 2.5 cm，xelatex 编译；默认中文字体由 ctex 决定。",
+      "英文：article 11pt，A4，页边距 2.5 cm，pdflatex 或 xelatex 均可。",
+      "图表：graphicx + booktabs；图题在下（\\caption 在 \\includegraphics 之后），表用 \\toprule/\\midrule/\\bottomrule。",
+      "参考文献：先给 thebibliography 手写条目；需要 BibTeX 时再加 \\bibliography{refs}。",
+      "改版面前先在生成的 .tex 上编译一次，再用 latex_look 看实际版面。"
+    ]
+  }
+}

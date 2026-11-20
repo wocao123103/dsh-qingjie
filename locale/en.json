@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Qingjin research writer",
+    "description": "A workbench that turns a vague research idea into paper shape: IMRaD / CARS / C-C-C section skeletons, fill-in templates and compilable LaTeX, English phrase templates by section and intent, 59 glossary terms with canonical translations and common mistranslations, paragraph and translation diagnostics, local PDF deep-reading that emits .md + .pdf, online discovery of high-quality papers in the same field, task routing across 18 research stages, and a de-AI prose check. A workbench lives in the right sidebar, opened by the 论文 button beside the composer. Everything runs locally except the field-paper lookup, which QINGJIN_OFFLINE=1 disables entirely. It deliberately does not write the paper for the author.",
+    "detail": "docs/DETAIL.md"
+  }
+}

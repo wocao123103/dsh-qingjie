@@ -1,0 +1,60 @@
+{
+  "_note": "8 篇实测样本的可追溯信息。未列 DOI 表示包内无可靠来源，不做猜测。",
+  "items": [
+    {
+      "short": "IDEA",
+      "title": "IDEA: Inverted Text with Cooperative Deformable Aggregation for Multi-modal Object Re-Identification",
+      "venue": "CVPR 2025",
+      "doi": "10.1109/cvpr52734.2025.02765",
+      "arxiv": "2503.10324"
+    },
+    {
+      "short": "INSPI",
+      "title": "Incentive Noise and Structural Prior Infusion for Multi-Modal Object Re-Identification",
+      "venue": "ECCV 2026（Springer LNCS）",
+      "doi": "10.1007/978-3-032-36984-0_31",
+      "arxiv": "2609.24539"
+    },
+    {
+      "short": "STMI",
+      "title": "STMI: Segmentation-Guided Token Modulation with Cross-Modal Hypergraph Interaction for Multi-modal Object Re-Identification",
+      "venue": "预印本",
+      "arxiv": "2603.00695"
+    },
+    {
+      "short": "CoT",
+      "title": "Chain-of-Thought Guided Multi-Modal Object Re-Identification",
+      "venue": "CVPR 2026",
+      "doi": "",
+      "note": "CVPR 开放获取版，DOI 未核对"
+    },
+    {
+      "short": "FUSE",
+      "title": "FUSE: Frequency-domain Unification and Spectral Energy Alignment for Multi-modal Object Re-Identification",
+      "venue": "ICML 2026 投稿",
+      "doi": "",
+      "note": "arXiv/会议版本未核对"
+    },
+    {
+      "short": "PEFT-BoA",
+      "title": "PEFT-BoA: Parameter-Efficient Fine-Tuning with Bag-of-Adapters for Multi-Modal Object Re-identification",
+      "venue": "AAAI 2026",
+      "doi": "",
+      "note": "AAAI 论文，DOI 未核对"
+    },
+    {
+      "short": "PMKD",
+      "title": "Progressive Multi-modal Knowledge Distillation for Multi-spectral Object Re-identification",
+      "venue": "AAAI 2026",
+      "doi": "",
+      "note": "AAAI 论文，DOI 未核对"
+    },
+    {
+      "short": "Signal",
+      "title": "Signal: Selective Interaction and Global-local Alignment for Multi-Modal Object Re-Identification",
+      "venue": "AAAI 2026",
+      "doi": "",
+      "note": "AAAI 论文，DOI 未核对"
+    }
+  ]
+}

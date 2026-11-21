@@ -1,0 +1,378 @@
+{
+  "meta": {
+    "version": 1,
+    "builtFrom": "8 篇 CVPR / ECCV / AAAI / ICML 论文（DOI 均可查），只抽取句法结构并改写为模板，不搬运原文段落",
+    "note": "模板里的 {X} 需要替换；例句来源仅标注会议与年份，不声称是原文逐字复制",
+    "crossDomainSource": "4 篇 GitHub 论文（生物/化学/数学/物理），2026-11-21 抽取"
+  },
+  "principles": {
+    "zh2en": [
+      "先定信息单位：中文一句话常含 2–3 个命题，英文要拆成独立句，用 however / therefore 显式连接，而不是堆逗号。",
+      "主语要明：中文常省略主语，英文必须补 we / this paper / the method，否则读者不知道是谁做的。",
+      "动词落到实处：把「具有较好的性能」写成 achieves / improves / reduces + 具体指标，不用 has good performance。",
+      "时态分层：背景用现在时，本文工作用现在时（we propose），实验与结果用过去时（achieved / outperformed）。",
+      "少用名词化：把「对……的优化」写成 optimize X，而不是 the optimization of X。"
+    ],
+    "en2zh": [
+      "拆长句：英文一个句子常挂 2–3 个从句，中文按「背景—动作—结果」切成短句，逻辑连接词保留（然而/因此/具体来说）。",
+      "术语先定后译：同一术语全文只用一个译名，首次出现给英文原词，例如「混合执行（concolic execution）」。",
+      "被动转主动：英文被动（is utilized）译成中文时优先「我们采用 / 该方法使用」，避免「被使用」。",
+      "数字与单位照搬：mAP、Rank-1、GFLOPs 不译，数字保留阿拉伯数字。",
+      "删虚词：把「值得注意的是」「此外」这类英文衔接词在中文里压缩为一句或直接省略。"
+    ]
+  },
+  "pitfalls": {
+    "zh2en": [
+      {
+        "bad": "In this paper, we mainly study the problem of multi-modal ReID.",
+        "why": "mainly study 是中式英语；英文论文用 address / investigate / focus on",
+        "fix": "This paper addresses multi-modal object Re-identification."
+      },
+      {
+        "bad": "The experimental results show that our method has a good performance.",
+        "why": "has a good performance 非学术表达，且 good 不可量化",
+        "fix": "Our method achieves 80.6% mAP, outperforming the baseline by 6.2 points."
+      },
+      {
+        "bad": "With the development of deep learning, ...",
+        "why": "公式化开头，评审一眼看出模板",
+        "fix": "Recent multi-modal ReID methods rely on complementary RGB–NIR–TIR cues."
+      },
+      {
+        "bad": "We use the method of attention to solve this problem.",
+        "why": "use the method of 冗余",
+        "fix": "We apply cross-modal attention to ..."
+      },
+      {
+        "bad": "This paper proposes a method which is based on CLIP.",
+        "why": "定语从句堆叠；based on 放句首更地道",
+        "fix": "Built on CLIP, our method ..."
+      },
+      {
+        "bad": "The accuracy is improved by our module.",
+        "why": "被动语态掩盖贡献主体",
+        "fix": "Our module improves accuracy by 2.1 points."
+      }
+    ],
+    "en2zh": [
+      {
+        "bad": "值得注意的是，该方法具有一定的局限性。",
+        "why": "「值得注意的是」是英文 It is worth noting 的直译，中文论文里显得空",
+        "fix": "该方法在跨数据集场景下仍有局限。"
+      },
+      {
+        "bad": "本文的方法被应用于多个数据集上。",
+        "why": "「被应用于」是被动直译，中文更常说「在……上验证」",
+        "fix": "本文方法在三个基准上验证。"
+      },
+      {
+        "bad": "该模块可以有效地提升性能。",
+        "why": "「有效地」是 effectively 的虚化译法，缺少量化",
+        "fix": "该模块把 mAP 提升 2.1 个点。"
+      },
+      {
+        "bad": "综上所述，我们可以得出结论。",
+        "why": "结论段不需要复述「可以得出结论」",
+        "fix": "实验表明，噪声建模是增益的主要来源。"
+      }
+    ]
+  },
+  "exemplars": {
+    "background": [
+      {
+        "en": "Multi-modal object Re-identification aims to retrieve the same instance across cameras with heterogeneous modalities.",
+        "zh": "多模态目标重识别旨在跨相机检索同一目标，输入为异质模态。",
+        "src": "CVPR/AAAI 类论文摘要常用首句结构"
+      },
+      {
+        "en": "By leveraging complementary information, multi-modal methods improve feature robustness under challenging conditions.",
+        "zh": "借助互补信息，多模态方法在困难条件下提升了特征鲁棒性。",
+        "src": "8 篇样本中 6 篇采用 By leveraging ... 的开篇"
+      },
+      {
+        "en": "Recently, text descriptions have been introduced as an additional modality to enrich semantic representation.",
+        "zh": "近期，文本描述被作为额外模态引入，以丰富语义表示。",
+        "src": "CVPR 2025 / ECCV 2026 摘要"
+      }
+    ],
+    "gap": [
+      {
+        "en": "However, existing methods focus on fusing heterogeneous visual features, neglecting the potential benefits of text-based semantic information.",
+        "zh": "然而，现有方法专注于融合异质视觉特征，忽略了文本语义信息的潜在收益。",
+        "src": "CVPR 2025 摘要（结构：承认 + 然而 + 忽略）"
+      },
+      {
+        "en": "However, these approaches treat text descriptions as clean, deterministic signals and overlook their inherent noise.",
+        "zh": "然而，这些方法把文本描述当作干净、确定的信号，忽视了其固有噪声。",
+        "src": "ECCV 2026 摘要"
+      },
+      {
+        "en": "It remains unclear whether such gains hold when the text modality is noisy.",
+        "zh": "当文本模态含噪时，这类增益是否仍然成立尚不清楚。",
+        "src": "remains unclear 是 CARS Move 2 的高频句式"
+      },
+      {
+        "en": "Few studies have examined {X} under {condition}.",
+        "zh": "很少有研究在{条件}下考察{X}。",
+        "src": "通用 gap 句式（8 篇中出现 3 次变体）"
+      }
+    ],
+    "purpose": [
+      {
+        "en": "To address this issue, we propose {NAME}, a framework that {does what}.",
+        "zh": "为解决该问题，本文提出{NAME}，一个用于{做什么}的框架。",
+        "src": "CVPR/ECCV 摘要标准贡献句"
+      },
+      {
+        "en": "To be specific, we first construct {artifact}.",
+        "zh": "具体来说，我们首先构建{产物}。",
+        "src": "CVPR 2025 方法段首句"
+      },
+      {
+        "en": "This paper presents {NAME}, which combines {A} with {B}.",
+        "zh": "本文提出{NAME}，将{A}与{B}结合。",
+        "src": "AAAI 2026 摘要"
+      }
+    ],
+    "method": [
+      {
+        "en": "Specifically, {module} is designed to {purpose}, reducing the impact of {problem}.",
+        "zh": "具体来说，{模块}被设计用于{目的}，降低{问题}的影响。",
+        "src": "8 篇样本中模块介绍的标准句式"
+      },
+      {
+        "en": "The pipeline consists of two steps: first {step1}, then {step2}.",
+        "zh": "该流程包含两步：先{步骤一}，再{步骤二}。",
+        "src": "CVPR 2025 方法节"
+      },
+      {
+        "en": "We then use {feature} as the query and {other} as the key/value.",
+        "zh": "随后以{特征}为查询、以{另一特征}为键值。",
+        "src": "attention 类方法的常用结构"
+      },
+      {
+        "en": "Technically, we first develop {X} and then aggregate {Y}.",
+        "zh": "在实现上，我们先构建{X}，再聚合{Y}。",
+        "src": "ECCV 2026 方法节开头"
+      }
+    ],
+    "result": [
+      {
+        "en": "Our method achieves {number}% mAP and {number}% Rank-1 accuracy, outperforming {baseline} by {delta} points.",
+        "zh": "本文方法取得{数字}% mAP 与{数字}% Rank-1，比{基线}高{差值}个点。",
+        "src": "CVPR/AAAI 结果段标准句"
+      },
+      {
+        "en": "These results highlight the ability of {method} to {capability}.",
+        "zh": "这些结果体现了{方法}在{能力}方面的能力。",
+        "src": "CVPR 2025 结果讨论"
+      },
+      {
+        "en": "Model B incorporates {X}, improving mAP from {a}% to {b}%.",
+        "zh": "模型 B 引入{X}，把 mAP 从{a}% 提升到{b}%。",
+        "src": "消融表的叙述方式（AAAI 2026）"
+      },
+      {
+        "en": "Both modules contribute to the final performance, with {module} accounting for the larger share.",
+        "zh": "两个模块都对最终性能有贡献，其中{模块}占比更大。",
+        "src": "消融结论句式"
+      }
+    ],
+    "conclusion": [
+      {
+        "en": "In this paper, we present {NAME}, a framework that {one-line claim}.",
+        "zh": "本文提出{NAME}，一个{一句话主张}的框架。",
+        "src": "ECCV/AAAI 结论段首句"
+      },
+      {
+        "en": "These results validate the effectiveness of {module} in addressing {challenge}.",
+        "zh": "这些结果验证了{模块}在应对{挑战}上的有效性。",
+        "src": "8 篇中 5 篇使用 validate the effectiveness"
+      },
+      {
+        "en": "Future work will extend {method} to {setting}.",
+        "zh": "未来工作将把{方法}扩展到{场景}。",
+        "src": "通用展望句（注意：原文常缺此句）"
+      }
+    ]
+  },
+  "terms": [
+    {
+      "zh": "多模态目标重识别",
+      "en": "multi-modal object re-identification",
+      "note": "首次出现给全称，之后用 ReID"
+    },
+    {
+      "zh": "互补信息",
+      "en": "complementary information",
+      "note": "固定搭配，不用 complementary cues 混用"
+    },
+    {
+      "zh": "语义对齐",
+      "en": "semantic alignment",
+      "note": "与 structural alignment（结构对齐）区分"
+    },
+    {
+      "zh": "模态鸿沟",
+      "en": "modality gap",
+      "note": "也作 modality discrepancy"
+    },
+    {
+      "zh": "提示调制",
+      "en": "prompt modulation",
+      "note": "与 prompt tuning 区分"
+    },
+    {
+      "zh": "结构先验",
+      "en": "structural prior",
+      "note": "prior 在贝叶斯语境译「先验」"
+    },
+    {
+      "zh": "消融实验",
+      "en": "ablation study",
+      "note": "不是 ablation experiment 更常见"
+    },
+    {
+      "zh": "基线",
+      "en": "baseline",
+      "note": "首次出现写 the baseline method"
+    },
+    {
+      "zh": "泛化能力",
+      "en": "generalization ability",
+      "note": "也可 generalization capability"
+    },
+    {
+      "zh": "计算开销",
+      "en": "computational cost",
+      "note": "与 FLOPs 并列时写 computational cost (FLOPs)"
+    },
+    {
+      "zh": "特征鲁棒性",
+      "en": "feature robustness",
+      "note": "常见搭配 improve feature robustness"
+    },
+    {
+      "zh": "检索",
+      "en": "retrieve / retrieval",
+      "note": "retrieve the same instance 是固定说法"
+    },
+    {
+      "zh": "验证有效性",
+      "en": "validate the effectiveness",
+      "note": "论文里几乎只用 validate"
+    },
+    {
+      "zh": "性能提升",
+      "en": "performance gain",
+      "note": "也可 improvement in mAP"
+    },
+    {
+      "zh": "端到端",
+      "en": "end-to-end",
+      "note": "作定语时加连字符"
+    }
+  ],
+  "crossDomain": {
+    "bio": [
+      {
+        "en": "X was measured after Y, and Z was recorded at {condition}.",
+        "zh": "在{条件}下测量 Y 之后测 X，并记录 Z。",
+        "note": "方法节用被动过去时，主语是样本/仪器，不是\"我们\""
+      },
+      {
+        "en": "This suggests that {factor} will increase {quantity}, potentially impacting {outcome}.",
+        "zh": "这表明{因素}会提高{量}，进而可能影响{结果}。",
+        "note": "生物结果句常用 This suggests that + 情态动词"
+      },
+      {
+        "en": "There was a significant interaction between {A} and {B} on {measure}.",
+        "zh": "{A} 与 {B} 对{指标}存在显著交互作用。",
+        "note": "统计结果表述，interaction between … on …"
+      }
+    ],
+    "chem": [
+      {
+        "en": "A screen of {reagents} was conducted and led to {finding}.",
+        "zh": "对{试剂}进行筛选，得到{结果}。",
+        "note": "化学用被动，A screen of X was conducted"
+      },
+      {
+        "en": "{species} were found to catalyze {reaction} under {conditions}.",
+        "zh": "发现{物种}能在{条件}下催化{反应}。",
+        "note": "was/were found to + 动词原形，比 we found 更常见"
+      },
+      {
+        "en": "In contrast to most existing methods, {approach} provides {advantage}.",
+        "zh": "与多数现有方法不同，{方法}提供了{优势}。",
+        "note": "对照句固定搭配 In contrast to"
+      }
+    ],
+    "math": [
+      {
+        "en": "{object} is defined as {definition}.",
+        "zh": "{对象}被定义为{定义}。",
+        "note": "定义句用 is defined as，不用 we call"
+      },
+      {
+        "en": "{object} will be denoted by {symbol}.",
+        "zh": "{对象}记作{符号}。",
+        "note": "记法句固定句式"
+      },
+      {
+        "en": "{condition} implies that {conclusion}, and hence {corollary}.",
+        "zh": "{条件}蕴含{结论}，因此{推论}。",
+        "note": "推理链用 implies / hence / thus"
+      }
+    ],
+    "physics": [
+      {
+        "en": "There is, however, an important caveat to {claim}.",
+        "zh": "然而，{论断}有一个重要前提。",
+        "note": "限定语，物理常见"
+      },
+      {
+        "en": "Under {condition}, {quantity} varies with {variable}.",
+        "zh": "在{条件}下，{量}随{变量}变化。",
+        "note": "避免中文长定语，拆成 Under X, Y varies with Z"
+      },
+      {
+        "en": "The {model} assumes {assumption}, which holds when {condition}.",
+        "zh": "{模型}假设{前提}，该前提在{条件}下成立。",
+        "note": "假设-条件结构"
+      }
+    ],
+    "textbook": [
+      {
+        "en": "X is defined as Y.",
+        "zh": "X 定义为 Y。",
+        "note": "定义句固定 is defined as；不要用 means"
+      },
+      {
+        "en": "We define X to be Y.",
+        "zh": "我们把 X 定义为 Y。",
+        "note": "理论类论文更正式，比 define X as 更常见"
+      },
+      {
+        "en": "In other words, X is Y.",
+        "zh": "换句话说，X 就是 Y。",
+        "note": "解释句；论文里少量使用"
+      },
+      {
+        "en": "It follows that X.",
+        "zh": "由此可知 X。",
+        "note": "推导结论，比 so 正式"
+      },
+      {
+        "en": "To a good approximation, X.",
+        "zh": "在很好的近似下，X。",
+        "note": "比 approximately 更强调近似够好"
+      },
+      {
+        "en": "X is negligible compared to Y.",
+        "zh": "相对 Y，X 可忽略。",
+        "note": "必须带比较对象，不单独写 negligible"
+      }
+    ]
+  }
+}

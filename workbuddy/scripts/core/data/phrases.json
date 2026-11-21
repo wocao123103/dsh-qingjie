@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "note": "自建句式库：按「章节 × 写作意图」组织的英文模板，非任何机构资料的复制。{花括号} 处替换为你的内容。",
+  "sections": {
+    "abstract": "摘要",
+    "intro": "引言",
+    "methods": "方法",
+    "results": "结果",
+    "discussion": "讨论",
+    "conclusion": "结论",
+    "transition": "过渡",
+    "response": "审稿回复"
+  },
+  "intents": {
+    "abstract": ["background", "objective", "method", "result", "limitation", "conclusion"],
+    "intro": ["importance", "state-of-art", "gap", "purpose", "structure"],
+    "methods": ["data", "setup", "procedure", "analysis", "statistics"],
+    "results": ["finding", "quantity", "comparison", "trend"],
+    "discussion": ["interpretation", "literature", "limitation", "mechanism", "future"],
+    "conclusion": ["summary", "significance", "outlook"],
+    "transition": ["contrast", "cause", "addition", "example"],
+    "response": ["agree", "clarify", "disagree", "thanks"]
+  },
+  "entries": [
+    {
+      "id": "ab-bg-1", "section": "abstract", "intent": "background", "zh": "交代领域背景与重要性",
+      "en": [
+        "{Field} has attracted increasing attention because {reason}.",
+        "Understanding {phenomenon} is important for {application}.",
+        "{Phenomenon} plays a central role in {context}, yet {open question}."
+      ],
+      "caution": "背景最多两句；不要在这里展开文献评述。"
+    },
+    {
+      "id": "ab-ob-1", "section": "abstract", "intent": "objective", "zh": "点明本文要解决的问题",
+      "en": [
+        "This study aims to determine whether {X} affects {Y}.",
+        "We address the question of how {X} changes under {condition}.",
+        "Here we ask which factors control {X} in {setting}."
+      ],
+      "caution": "一个问题即可；多个目标意味着多个贡献，说服力会下降。"
+    },
+    {
+      "id": "ab-me-1", "section": "abstract", "intent": "method", "zh": "说明做法与数据",
+      "en": [
+        "We {method} on {data}, using {tool} to measure {quantity}.",
+        "A {design} was used to compare {group A} with {group B}.",
+        "The model was trained on {n} samples and evaluated by {metric}."
+      ],
+      "caution": "方法只写读者理解结果所必需的部分。"
+    },
+    {
+      "id": "ab-re-1", "section": "abstract", "intent": "result", "zh": "报告具体结果（必须带数字或方向）",
+      "en": [
+        "{Metric} increased from {a} to {b} ({p}%), a {size} improvement over {baseline}.",
+        "Under {condition}, {quantity} was {value} times higher than in the control.",
+        "We found no evidence that {X} affects {Y}."
+      ],
+      "caution": "「效果更好」不算结果；给出数值、方向与对照。"
+    },
+    {
+      "id": "ab-li-1", "section": "abstract", "intent": "limitation", "zh": "主动交代边界（可选）",
+      "en": [
+        "These results are limited to {setting}; generalization to {other setting} remains to be tested.",
+        "The analysis covers {n} cases and should not be extrapolated to {population}."
+      ],
+      "caution": "一句即可，不要写成道歉。"
+    },
+    {
+      "id": "ab-co-1", "section": "abstract", "intent": "conclusion", "zh": "给出结论与意义",
+      "en": [
+        "These findings suggest that {X} is a viable route to {goal}.",
+        "Our results provide a basis for {application} under {condition}."
+      ],
+      "caution": "结论必须被结果句直接支撑，不得外推。"
+    },
+    {
+      "id": "in-im-1", "section": "intro", "intent": "importance", "zh": "宣称主题的中心性（CARS Move 1）",
+      "en": [
+        "{Topic} is central to {field} because {reason}.",
+        "The ability to {capability} underlies many applications in {field}.",
+        "Recent years have seen growing interest in {topic}."
+      ],
+      "caution": "要大胆但要有据；空喊「具有重要意义」最容易被审稿人划掉。"
+    },
+    {
+      "id": "in-so-1", "section": "intro", "intent": "state-of-art", "zh": "综述前人工作（分类而不要罗列）",
+      "en": [
+        "Prior work has approached {problem} in two main ways: {approach A} and {approach B}.",
+        "{Author} showed that {finding}; subsequent studies extended this to {setting}.",
+        "These methods perform well when {condition}, but degrade when {other condition}."
+      ],
+      "caution": "按方法分类；每类都要落到「在本场景下不够用」。"
+    },
+    {
+      "id": "in-ga-1", "section": "intro", "intent": "gap", "zh": "指出空白（CARS Move 2，四选一）",
+      "en": [
+        "However, few studies have examined {X} under {condition}.",
+        "It remains unclear whether {X} generalizes beyond {setting}.",
+        "This raises the question of how {X} responds to {Y}.",
+        "These approaches assume {assumption}, which may not hold when {condition}."
+      ],
+      "caution": "空白必须能由你的结果填上；否则整篇论文会失去支点。"
+    },
+    {
+      "id": "in-pu-1", "section": "intro", "intent": "purpose", "zh": "交代目的与假设（CARS Move 3）",
+      "en": [
+        "In this study, we test the hypothesis that {X} increases with {Y}.",
+        "We therefore set out to determine whether {X} can be predicted from {Y}.",
+        "To address this gap, we {method} and compare it against {baseline}."
+      ],
+      "caution": "假设要可被数据证伪，避免「验证其优越性」这类不可证伪表述。"
+    },
+    {
+      "id": "in-st-1", "section": "intro", "intent": "structure", "zh": "预告结构（能省则省）",
+      "en": [
+        "The remainder of this paper is organized as follows. Section 2 describes {X}; Section 3 reports {Y}.",
+        "We first describe {X}, then present {Y}, and finally discuss {Z}."
+      ],
+      "caution": "「本节介绍……下节介绍……」是最无聊的段落，宁可并入上一段。"
+    },
+    {
+      "id": "me-da-1", "section": "methods", "intent": "data", "zh": "数据来源与筛选",
+      "en": [
+        "Data were collected from {source} between {period} and filtered by {criteria}.",
+        "The dataset comprises {n} samples, of which {m} were excluded because {reason}.",
+        "All procedures were approved by {committee} (approval no. {id})."
+      ],
+      "caution": "排除标准必须写，否则结果不可复现。"
+    },
+    {
+      "id": "me-se-1", "section": "methods", "intent": "setup", "zh": "实验/建模设置",
+      "en": [
+        "Experiments were performed on {platform} with {specification} at {condition}.",
+        "Models were implemented in {framework} (version {v}) and trained for {epochs} epochs.",
+        "Each condition was repeated {n} times, and the mean ± SD is reported."
+      ],
+      "caution": "版本号与重复次数是复现的关键，别省。"
+    },
+    {
+      "id": "me-pr-1", "section": "methods", "intent": "procedure", "zh": "按步骤描述流程",
+      "en": [
+        "The procedure consisted of three steps: {A}, {B}, and {C}.",
+        "Samples were first {action}, then {action}, and finally {action}.",
+        "After {step}, the output was passed to {module} for {purpose}."
+      ],
+      "caution": "用过去时；按时间顺序，一步一段。"
+    },
+    {
+      "id": "me-an-1", "section": "methods", "intent": "analysis", "zh": "分析方法与理由",
+      "en": [
+        "We used {method} because it is robust to {condition}.",
+        "{Metric} was chosen to capture {property}; higher values indicate {meaning}.",
+        "Differences were assessed with {test} at a significance level of α = {alpha}."
+      ],
+      "caution": "选择方法的理由要写，评审常问「为什么不用 X」。"
+    },
+    {
+      "id": "me-st-1", "section": "methods", "intent": "statistics", "zh": "统计处理",
+      "en": [
+        "All analyses were performed in {software}; reported values are mean ± SD.",
+        "Multiple comparisons were corrected using {method}.",
+        "Effect sizes are reported as {measure} with 95% confidence intervals."
+      ],
+      "caution": "只报 p 值不报效应量，是常见退稿理由。"
+    },
+    {
+      "id": "re-fi-1", "section": "results", "intent": "finding", "zh": "陈述发现",
+      "en": [
+        "Figure {n} shows that {X} increased with {Y}.",
+        "As expected, {group A} differed from {group B} in {measure}.",
+        "Consistent with {hypothesis}, {observation}."
+      ],
+      "caution": "Results 只陈述，不加「因为」「说明」。"
+    },
+    {
+      "id": "re-qu-1", "section": "results", "intent": "quantity", "zh": "量化描述",
+      "en": [
+        "The mean {measure} was {value} (SD = {sd}, n = {n}).",
+        "{A} was {p}% higher than {B} ({a} vs {b}).",
+        "The effect remained significant after controlling for {covariate}."
+      ],
+      "caution": "必须给单位与样本量。"
+    },
+    {
+      "id": "re-co-1", "section": "results", "intent": "comparison", "zh": "对比基准",
+      "en": [
+        "Compared with {baseline}, {our method} improved {metric} by {p}%.",
+        "{Method A} outperformed {method B} on {metric}, but required {cost}.",
+        "The difference between {A} and {B} was not statistically significant."
+      ],
+      "caution": "对照要交代公平性（同数据、同预算）。"
+    },
+    {
+      "id": "re-tr-1", "section": "results", "intent": "trend", "zh": "趋势与规律",
+      "en": [
+        "{Measure} increased monotonically with {X} up to {threshold}, after which it plateaued.",
+        "The trend reversed when {condition} exceeded {value}."
+      ],
+      "caution": "趋势描述要能被图直接看出。"
+    },
+    {
+      "id": "di-in-1", "section": "discussion", "intent": "interpretation", "zh": "解释结果",
+      "en": [
+        "One interpretation of this pattern is that {mechanism}.",
+        "This result is consistent with {theory}, which predicts {prediction}.",
+        "The observed effect may be attributable to {factor}, although {alternative} cannot be excluded."
+      ],
+      "caution": "给出替代解释，显示你考虑过其他可能。"
+    },
+    {
+      "id": "di-li-1", "section": "discussion", "intent": "literature", "zh": "与前人比较",
+      "en": [
+        "Our findings extend {author}'s result to {new setting}.",
+        "In contrast to {author}, who reported {finding}, we observed {finding}; the difference may stem from {reason}.",
+        "These results align with {author} but differ in {aspect}."
+      ],
+      "caution": "比较要落到具体差异，不要只写「一致」。"
+    },
+    {
+      "id": "di-lm-1", "section": "discussion", "intent": "limitation", "zh": "交代局限",
+      "en": [
+        "Several limitations should be noted. First, {limitation}; second, {limitation}.",
+        "Our conclusions are restricted to {setting}, because {reason}.",
+        "The sample size ({n}) limits the precision of {estimate}."
+      ],
+      "caution": "每条局限配一个缓解办法或后续验证方式。"
+    },
+    {
+      "id": "di-me-1", "section": "discussion", "intent": "mechanism", "zh": "机制或经验",
+      "en": [
+        "A plausible mechanism is that {X} modulates {Y} through {pathway}.",
+        "Unexpectedly, {observation}; this suggests that {revised view}."
+      ],
+      "caution": "机制推测必须标明是推测（may/might/could）。"
+    },
+    {
+      "id": "di-fu-1", "section": "discussion", "intent": "future", "zh": "后续工作",
+      "en": [
+        "Future work should test whether {X} holds in {other setting}.",
+        "Extending the approach to {case} is a natural next step.",
+        "A larger, multi-site study would help establish {claim}."
+      ],
+      "caution": "具体到可执行，别写「进一步完善」。"
+    },
+    {
+      "id": "co-su-1", "section": "conclusion", "intent": "summary", "zh": "总结结论",
+      "en": [
+        "This study shows that {claim} under {condition}.",
+        "Taken together, these results indicate that {claim}."
+      ],
+      "caution": "不引入新数据、新概念。"
+    },
+    {
+      "id": "co-si-1", "section": "conclusion", "intent": "significance", "zh": "说明意义",
+      "en": [
+        "The findings offer a practical basis for {application}.",
+        "Methodologically, the approach provides a way to {capability} without {cost}."
+      ],
+      "caution": "意义不超过数据边界。"
+    },
+    {
+      "id": "co-ou-1", "section": "conclusion", "intent": "outlook", "zh": "展望",
+      "en": [
+        "Applying the method to {domain} and validating it at scale are the next steps.",
+        "Whether the effect persists over longer periods remains an open question."
+      ],
+      "caution": "展望要能落到一个可做的实验。"
+    },
+    {
+      "id": "tr-co-1", "section": "transition", "intent": "contrast", "zh": "转折",
+      "en": ["However, {X} remains unresolved.", "In contrast, {Y} has received little attention."],
+      "caution": "转折句通常就是空白的入口，善用。"
+    },
+    {
+      "id": "tr-ca-1", "section": "transition", "intent": "cause", "zh": "因果/因此",
+      "en": ["Consequently, {X} cannot be assumed.", "This, in turn, means that {Y}."],
+      "caution": "因果要有依据，不要用 therefore 替代论证。"
+    },
+    {
+      "id": "tr-ad-1", "section": "transition", "intent": "addition", "zh": "递进/并列",
+      "en": ["In addition, {X}.", "Moreover, {Y} holds even when {condition}."],
+      "caution": "并列观点用平行句式，读者才不必重新解析。"
+    },
+    {
+      "id": "tr-ex-1", "section": "transition", "intent": "example", "zh": "举例",
+      "en": ["For example, {case} shows that {claim}.", "A case in point is {case}."],
+      "caution": "例子要服务于论点，不要变成故事。"
+    },
+    {
+      "id": "rs-ag-1", "section": "response", "intent": "agree", "zh": "同意并修改",
+      "en": [
+        "We thank the reviewer for this observation. We have revised {location} accordingly.",
+        "The reviewer is right; we have added {content} on page {p}."
+      ],
+      "caution": "逐条回应，标明修改位置。"
+    },
+    {
+      "id": "rs-cl-1", "section": "response", "intent": "clarify", "zh": "澄清（未修改时）",
+      "en": [
+        "We agree that {point} was unclear and have rephrased it as follows: {text}.",
+        "To avoid confusion, we now define {term} explicitly in Section {n}."
+      ],
+      "caution": "先承认表述问题，再解释原意。"
+    },
+    {
+      "id": "rs-di-1", "section": "response", "intent": "disagree", "zh": "有理有据地不同意",
+      "en": [
+        "We respectfully disagree, because {evidence}. We have nevertheless added {clarification}.",
+        "Our data do not support this interpretation: {result}. We have made this explicit in {location}."
+      ],
+      "caution": "给证据、给让步；不要情绪化。"
+    },
+    {
+      "id": "rs-th-1", "section": "response", "intent": "thanks", "zh": "致谢与总述",
+      "en": [
+        "We are grateful for the constructive comments, which have substantially improved the manuscript.",
+        "Below we respond point by point; reviewer comments are in italics."
+      ],
+      "caution": "开头一段就交代修改范围与新增结果。"
+    }
+  ]
+}

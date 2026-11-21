@@ -1,6 +1,6 @@
 {
   "name": "@wocao123103/dsh-qingjin",
-  "version": "0.12.1",
+  "version": "1.1.2",
   "description": "【本地插件】青衿科研：论文骨架与成稿模板、英文句式与术语、段落/译文诊断、PDF 精读出 md+pdf、同方向论文检索（唯一联网）、18 阶段任务路由与去 AI 味检查。",
   "type": "module",
   "license": "MIT",
@@ -30,7 +30,9 @@
     "icon.svg",
     "README.md",
     "LICENSE",
-    "skills"
+    "skills",
+    "test",
+    "GITHUB-UPLOAD.md"
   ],
   "dsh": {
     "bundle": {

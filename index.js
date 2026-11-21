@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 青衿科研 · Qingjin Research
  *
  * A dependency-free DSH bundle that helps undergraduates (especially first-years
@@ -6,15 +6,22 @@
  * section skeletons grounded in IMRaD / CARS / C-C-C, an English phrase library
  * indexed by section and intent, and a deterministic paragraph self-check.
  *
- * No network, no model calls, no writes: every tool reads bundled data and
- * returns text the student can act on.
+ * Bundled-data tools; qingjin_related goes online, qingjin_export writes PDFs,
+ * qingjin_flow persists state.
  */
 
-import { readFileSync, statSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { readFileSync, statSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync, openSync, readSync, closeSync } from 'node:fs'
 import { isAbsolute, resolve, dirname, basename, join } from 'node:path'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { extractPdfText } from './lib/pdf.mjs'
+import { extractPdfTextSmart } from './lib/pdf.mjs'
+import { readPdfReport as readPdf, garbleRatio } from './lib/readpdf.mjs'
+import { mdToLatexDocument } from './lib/md2tex.mjs'
+import { mdToHtmlDocument } from './lib/md2html.mjs'
+import { startFlow, advanceFlow, flowStatus } from './lib/flow.mjs'
+import { userGlossaryPath } from './lib/paths.mjs'
+import { translateReport } from './lib/translate.mjs'
+import { debugReport } from './lib/debug.mjs'
 
 const data = (name) => JSON.parse(readFileSync(new URL(`./data/${name}`, import.meta.url), 'utf8'))
 
@@ -27,6 +34,40 @@ const RULES = data('rules.json')
 const VENUES = data('venues.json')
 const WORKFLOWS = data('workflows.json')
 const STYLE = data('style.json')
+const TRANSLATE = data('translate.json')
+let USER_GLOSSARY = { terms: [] }
+let USER_GLOSSARY_ERROR = ''
+let USER_GLOSSARY_MTIME = 0
+function loadUserGlossary() {
+  try {
+    const userPath = userGlossaryPath()
+    const fallback = new URL('./data/user-glossary.json', import.meta.url)
+    const useUser = existsSync(userPath)
+    const file = useUser ? userPath : fallback
+    const mtime = useUser ? statSync(userPath).mtimeMs : 0
+    if (useUser && mtime === USER_GLOSSARY_MTIME) return   // 内容未变，沿用缓存
+    const raw = readFileSync(file, 'utf8').replace(/^\uFEFF/, '')
+    USER_GLOSSARY = JSON.parse(raw)
+    USER_GLOSSARY_MTIME = mtime
+    USER_GLOSSARY_ERROR = ''
+  } catch (error) {
+    USER_GLOSSARY_ERROR = error instanceof Error ? error.message : String(error)
+  }
+}
+loadUserGlossary()
+
+/** 内置在前、用户在后；英文同名以用户条目为准。缺 en 时用 zh 兜底，避免静默丢弃。 */
+function ALL_TERMS() {
+  loadUserGlossary()   // 每次访问按 mtime 惰性重载：改词库无需重启宿主
+  const seen = new Map()
+  for (const term of [...GLOSSARY.terms, ...(USER_GLOSSARY.terms ?? [])]) {
+    if (!term || (!term.en && !term.zh)) continue
+    // 缺 en 时用 zh 兜底，保证下游 term.en.toLowerCase() 不会崩；标注来源便于识别。
+    const normalized = term.en ? term : { ...term, en: term.zh, _enFallback: true }
+    seen.set(String(normalized.en).toLowerCase(), normalized)
+  }
+  return [...seen.values()]
+}
 
 function toJsonSchema(parameters) {
   const properties = {}
@@ -88,12 +129,17 @@ function startersFor(sectionId) {
 
 function outlineResearch(topic, words) {
   const kind = STRUCTURE.kinds.research
-  const total = words ?? Math.round((kind.totalWords[0] + kind.totalWords[1]) / 2)
+  const fallback = Math.round((kind.totalWords[0] + kind.totalWords[1]) / 2)
+  const lowClamped = Number.isFinite(words) && words > 0 && words < 300
+  const highClamped = Number.isFinite(words) && words > 100000
+  const total = Number.isFinite(words) && words > 0 ? Math.min(100000, Math.max(300, Math.round(words))) : fallback
   const parts = []
   parts.push(`# 研究论文骨架${topic ? `：${topic}` : ''}`)
   parts.push('')
   parts.push(`> ${kind.oneLine}`)
   parts.push(`> 全文目标字数：约 ${total} 词。先定骨架再写字——标题、摘要、图、大纲最值得花时间。`)
+  if (lowClamped) parts.push('> 目标字数过小，已按 300 词下限处理；正式论文建议 4000 词以上。')
+  if (highClamped) parts.push('> 目标字数过大，已按 100000 词上限处理。')
   parts.push('')
   for (const section of kind.sections) {
     parts.push(formatSection(section, total))
@@ -177,6 +223,7 @@ function templateFor(kind, format, lang) {
 
 function buildTemplate(args) {
   const kind = ['paper', 'proposal'].includes(args.kind) ? args.kind : 'paper'
+  const kindNote = args.kind && !['paper', 'proposal'].includes(String(args.kind)) ? `（未知 kind ${args.kind}，已按论文模板输出）\n` : ''
   const format = args.format === 'tex' ? 'tex' : 'md'
   const formatNote = args.format && !['tex', 'md'].includes(String(args.format)) ? `（未知格式 ${args.format}，已按 md 输出）\n` : ''
   const lang = args.lang === 'en' ? 'en' : 'zh'
@@ -205,7 +252,7 @@ function buildTemplate(args) {
         'xelatex main.tex',
         '```',
         '',
-        '编译后用 `latex_look` 工具看实际版面，再逐节填内容。',
+        '编译后可用 `qingjin_export` 把对应 md 导成 PDF 核对版面；若本机没有导出引擎，请看编译日志，不要声称版面已检查。',
         '',
         '```latex',
         body,
@@ -220,7 +267,7 @@ function buildTemplate(args) {
         'pdflatex main.tex',
         '```',
         '',
-        'Check the real layout with the `latex_look` tool before filling in the sections.',
+        'Verify the layout by exporting a PDF with `qingjin_export` (or inspect the compiler log); never claim the layout was checked if no engine ran.',
         '',
         '```latex',
         body,
@@ -233,7 +280,7 @@ function buildTemplate(args) {
       body,
     ].join('\n')
 
-  return formatNote + header
+  return kindNote + formatNote + header
 }
 
 
@@ -241,51 +288,10 @@ function buildTemplate(args) {
 
 const PDF_MAX_BYTES = 40 * 1024 * 1024
 
-function readPdf(args) {
-  const rawPath = String(args.path ?? '').trim()
-  if (!rawPath) return '请给出 PDF 的路径（绝对路径，或相对于当前工作目录的路径）。'
-  const path = isAbsolute(rawPath) ? rawPath : resolve(rawPath)
-  if (!existsSync(path)) return `找不到文件：${path}`
-  const stat = statSync(path)
-  if (!stat.isFile()) return `不是文件：${path}`
-  if (stat.size > PDF_MAX_BYTES) return `文件过大（${(stat.size / 1024 / 1024).toFixed(1)} MB），上限 40 MB。`
-  if (!/\.pdf$/i.test(path)) return `不是 .pdf 文件：${path}（本工具只读 PDF）`
-
-  let result
-  try {
-    result = extractPdfText(path, { maxChars: 400000 })
-  } catch (error) {
-    return `解析 PDF 失败：${error instanceof Error ? error.message : String(error)}`
-  }
-  const text = result.text
-  if (text.replace(/\s/g, '').length < 400) {
-    return [
-      `已读取 ${path}，但只抽出 ${text.length} 个字符——多半是扫描版（图片型）PDF，没有文字层。`,
-      '这种情况下本工具帮不上：请改用可复制文本的版本（如 arXiv 的 HTML/ar5iv 页面），或先用 OCR 工具转成文本。',
-    ].join('\n')
-  }
-
-  const offset = Number.isFinite(args.offset) ? Math.max(0, Math.trunc(args.offset)) : 0
-  const maxChars = Number.isFinite(args.maxChars) ? Math.max(2000, Math.min(120000, Math.trunc(args.maxChars))) : 60000
-  const slice = text.slice(offset, offset + maxChars)
-  const more = offset + maxChars < text.length
-
-  const header = [
-    `PDF：${path}`,
-    `页数约 ${result.pages}，解码 ${result.streams} 个内容流，共抽取 ${text.length} 字符；本次给出第 ${offset}–${offset + slice.length} 字符。`,
-    more ? `后面还有内容，需要时再调用一次并传 offset=${offset + maxChars}。` : '已到全文末尾。',
-    '抽取器不解码字体编码，个别连字（fi/fl）可能丢失或错位；引用原文前请核对 PDF。',
-    '',
-    '--- 正文开始 ---',
-  ].join('\n')
-
-  return `${header}\n${slice}`
-}
-
 // ---------------------------------------------------------------- related works
 
 const OPENALEX = 'https://api.openalex.org/works'
-const WORK_SELECT = 'id,doi,title,publication_year,cited_by_count,primary_location,open_access,best_oa_location,topics'
+const WORK_SELECT = 'id,doi,title,publication_year,cited_by_count,primary_location,locations,open_access,best_oa_location,topics'
 
 function normalizeVenue(text) {
   return String(text ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -295,12 +301,14 @@ function normalizeVenue(text) {
 function tierOf(venueName) {
   const venue = normalizeVenue(venueName)
   if (venue === '') return { tier: 'none', label: '未标venue' }
+  if (venue.includes('lecture notes in computer science')) return { tier: 'none', label: 'LNCS（会议论文集系列，需看具体会议）' }
   for (const pattern of VENUES.preprintPatterns) {
     if (venue.includes(pattern)) return { tier: 'preprint', label: '预印本/索引库' }
   }
   for (const level of ['A', 'B']) {
     for (const entry of VENUES.tiers[level]) {
-      if (entry.match.some((needle) => venue.includes(needle))) {
+      const aliases = [String(entry.name ?? '').toLowerCase(), entry.name === 'NeurIPS' ? 'nips' : '']
+      if (entry.match.some((needle) => venue.includes(needle)) || aliases.some((alias) => alias && venue.includes(alias))) {
         return { tier: level, label: entry.name }
       }
     }
@@ -309,7 +317,14 @@ function tierOf(venueName) {
 }
 
 function venueOf(work) {
-  return work.primary_location?.source?.display_name ?? ''
+  const primary = work.primary_location?.source?.display_name ?? ''
+  // LNCS 这类系列名认不出具体会议：先遍历所有 location，命中 A/B 档就用它。
+  const names = [primary, ...(work.locations ?? []).map((item) => item?.source?.display_name ?? '')].filter(Boolean)
+  for (const name of names) {
+    const tier = tierOf(name).tier
+    if (tier === 'A' || tier === 'B') return name
+  }
+  return primary || names[0] || ''
 }
 
 function linksOf(work) {
@@ -325,8 +340,13 @@ function linksOf(work) {
 
 async function openalex(path) {
   const key = process.env.OPENALEX_API_KEY
-  const url = `${OPENALEX}${path}${path.includes('?') ? '&' : '?'}mailto=qingjin@dlut.edu.cn${key ? `&api_key=${encodeURIComponent(key)}` : ''}`
-  const response = await fetch(url, { headers: { 'User-Agent': 'dsh-qingjin/0.7 (mailto:qingjin@dlut.edu.cn)' } })
+  const mailto = process.env.OPENALEX_MAILTO || ''
+  const VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+  const url = `${OPENALEX}${path}${path.includes('?') ? '&' : '?'}${mailto ? `mailto=${encodeURIComponent(mailto)}&` : ''}${key ? `api_key=${encodeURIComponent(key)}` : ''}`
+  const response = await fetch(url, {
+    headers: { 'User-Agent': `dsh-qingjin/${VERSION}` },
+    signal: AbortSignal.timeout(15000),
+  })
   if (!response.ok) {
     const body = await response.text().catch(() => '')
     throw new Error(`OpenAlex ${response.status}：${body.slice(0, 160)}`)
@@ -340,6 +360,14 @@ async function findSeed(query) {
   if (doi) {
     const found = await openalex(`?filter=doi:${encodeURIComponent(doi[0])}&select=${WORK_SELECT}&per-page=1`)
     if (found.results?.length) return found.results[0]
+  }
+  // arXiv 号（2412.15931 / arXiv:2412.15931v2）→ OpenAlex 用 10.48550/arXiv.<id> 建索引
+  const arxiv = value.match(/(?:arxiv\s*:\s*)?(\d{4}\.\d{4,5})(?:v\d+)?/i)
+  if (!doi && arxiv) {
+    const id = arxiv[1]
+    const found = await openalex(`?filter=doi:${encodeURIComponent(`10.48550/arxiv.${id}`)}&select=${WORK_SELECT}&per-page=1`)
+    if (found.results?.length) return found.results[0]
+    return null
   }
   const byTitle = await openalex(`?filter=title.search:${encodeURIComponent(value)}&select=${WORK_SELECT}&per-page=5&sort=relevance_score:desc`)
   const hit = (byTitle.results ?? []).find((work) => work.title)
@@ -395,16 +423,27 @@ async function relatedReport(args) {
   if (seedError) return `联网查询失败（可能是网络或配额问题）：${seedError}\n\n若没有 OpenAlex key，每天共享额度很小；设置环境变量 OPENALEX_API_KEY 后重试。`
 
   if (!seed) {
-    // No paper matched: treat the query as a direction and list representative work.
+    // 传入的是标识符却匹配不上：直接说明，不要把标识符当关键词去检索一堆无关论文。
+    const looksLikeId = /^\s*(?:\d{4}\.\d{4,5}(?:v\d+)?|arxiv\s*:|10\.\d{4,9}\/)/i.test(query)
+    if (looksLikeId) {
+      return [
+        `没有在 OpenAlex 找到「${query}」对应的论文。`,
+        '- 可能尚未收录，或该标识符有误；',
+        '- 请改用论文标题，或换成 DOI（10.xxxx/...）。',
+        '不会把标识符当关键词去猜测性检索。',
+      ].join('\n')
+    }
     try {
       const page = await openalex(`?filter=fulltext.search:${encodeURIComponent(query)}&select=${WORK_SELECT}&per-page=25&sort=cited_by_count:desc`)
       const works = (page.results ?? []).filter((work) => work.title)
+      if (works.length === 0) return `没有找到与「${query}」相关的论文；请换关键词，或给论文标题/DOI。`
       return [
-        `没有匹配到具体论文，按方向「${query}」给出高引用代表工作：`,
+        `⚠ 没有匹配到种子论文：「${query}」不是已知的标题/DOI/arXiv 号。`,
+        '下面是按关键词召回的**高引代表工作**，不是这篇论文的引用网络，相关度有限：',
         '',
         ...rankWorks(works).slice(0, limit).map(rowOf),
         '',
-        '> 想更准，请给标题或 DOI。',
+        '> 想要准确的同方向对照，请给准确标题或 DOI。',
       ].join('\n')
     } catch (error) {
       return `联网查询失败：${error instanceof Error ? error.message : String(error)}`
@@ -415,7 +454,7 @@ async function relatedReport(args) {
   const parts = []
   parts.push(`## 种子`)
   parts.push(`**${seed.title}**`)
-  parts.push(`${venueOf(seed) || '（无 venue）'} · ${seed.publication_year ?? '—'} · 引用 ${seed.cited_by_count ?? 0} · ${seedTier.tier === 'A' || seedTier.tier === 'B' ? `${seedTier.tier} 档` : '未收录等级'}`)
+  parts.push(`${venueOf(seed) || '（无 venue）'} · ${seed.publication_year ?? '—'} · 引用 ${seed.cited_by_count ?? 0} · ${seedTier.tier === 'A' || seedTier.tier === 'B' ? `${seedTier.tier} 档` : seedTier.tier === 'preprint' ? '⚠ 预印本（未同行评审）' : `未收录等级（${seedTier.label}）`}`)
   if (seed.doi) parts.push(`DOI：${seed.doi}`)
   parts.push('')
 
@@ -444,10 +483,15 @@ async function relatedReport(args) {
   if (tierFilter === 'A') ranked = ranked.filter((item) => item.tier.tier === 'A')
   else if (tierFilter === 'AB') ranked = ranked.filter((item) => item.tier.tier === 'A' || item.tier.tier === 'B')
 
+  let relaxed = false
+  if (ranked.length === 0 && tierFilter !== 'all') {
+    ranked = rankWorks(unique)
+    relaxed = true
+  }
   const top = ranked.slice(0, limit)
   const preprints = rankWorks(unique).filter((item) => item.tier.tier === 'preprint').slice(0, 3)
 
-  parts.push(`## 同方向高质量论文（${tierFilter === 'all' ? '全部等级' : tierFilter === 'A' ? '仅 A 档' : 'A + B 档'}，按等级与引用排序）`)
+  parts.push(`## 同方向高质量论文（${relaxed ? '全部等级（A/B 档无结果，已自动放宽）' : tierFilter === 'all' ? '全部等级' : tierFilter === 'A' ? '仅 A 档' : 'A + B 档'}，按等级与引用排序）`)
   if (top.length === 0) parts.push('- 没有符合条件的结果；把 tier 改成 `all` 再试。')
   else parts.push(...top.map(rowOf))
   parts.push('')
@@ -480,42 +524,69 @@ async function relatedReport(args) {
 
 // ---------------------------------------------------------------- export
 
+const PF = process.env.ProgramFiles || 'C:/Program Files'
+const PF86 = process.env['ProgramFiles(x86)'] || 'C:/Program Files (x86)'
+const LOCAL = process.env.LOCALAPPDATA || ''
+const APPDATA = process.env.APPDATA || ''
+
 const PANDOC_CANDIDATES = [
   'pandoc',
-  'C:/Program Files/Pandoc/pandoc.exe',
-  'C:/Program Files (x86)/Pandoc/pandoc.exe',
-  'D:/texlive/2026/bin/windows/pandoc.exe',
+  `${PF}/Pandoc/pandoc.exe`,
+  `${PF86}/Pandoc/pandoc.exe`,
 ]
 
 const XELATEX_CANDIDATES = [
   'xelatex',
-  'D:/texlive/2026/bin/windows/xelatex.exe',
-  'C:/texlive/2026/bin/windows/xelatex.exe',
-  'C:/Program Files/MiKTeX/miktex/bin/x64/xelatex.exe',
+  `${LOCAL}/Programs/MiKTeX/miktex/bin/x64/xelatex.exe`,
+  `${PF}/MiKTeX/miktex/bin/x64/xelatex.exe`,
+  `${PF}/texlive/2026/bin/windows/xelatex.exe`,
 ]
 
 const TYPST_CANDIDATES = [
   'typst',
-  'C:/ProgramData/chocolatey/bin/typst.exe',
-  'C:/Users/Public/typst/typst.exe',
+  `${APPDATA}/local/bin/typst.exe`,
 ]
 
 const WINWORD_CANDIDATES = [
-  'C:/Program Files/Microsoft Office/root/Office16/WINWORD.EXE',
-  'C:/Program Files (x86)/Microsoft Office/root/Office16/WINWORD.EXE',
+  `${PF}/Microsoft Office/root/Office16/WINWORD.EXE`,
+  `${PF86}/Microsoft Office/root/Office16/WINWORD.EXE`,
 ]
 
+const WPS_ROOT_CANDIDATES = [
+  `${PF}/WPS Office`,
+  `${PF86}/WPS Office`,
+  `${LOCAL}/Kingsoft/WPS Office`,
+].filter(Boolean)
+
 const BROWSER_CANDIDATES = [
-  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+  `${PF86}/Microsoft/Edge/Application/msedge.exe`,
+  `${PF}/Microsoft/Edge/Application/msedge.exe`,
+  `${PF}/Google/Chrome/Application/chrome.exe`,
+  `${PF86}/Google/Chrome/Application/chrome.exe`,
 ]
+
+/** WPS 安装目录带版本号，按数值倒序取最新的一个可执行文件。 */
+function findWpsWriter() {
+  for (const root of WPS_ROOT_CANDIDATES) {
+    if (!root || !existsSync(root)) continue
+    let versions = []
+    try { versions = readdirSync(root).filter((name) => /^\d/.test(name)) } catch { continue }
+    versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+    for (const version of versions) {
+      for (const candidate of ['office6/wps.exe', 'office6/wpsoffice.exe']) {
+        const exe = join(root, version, candidate)
+        if (existsSync(exe)) return exe
+      }
+    }
+  }
+  return null
+}
 
 const ENGINE_LABELS = {
   xelatex: 'LaTeX（xelatex + ctexart）',
   typst: 'Typst（--pdf-engine=typst）',
   word: 'Word（docx 原生公式 → Word 导出）',
+  wps: 'WPS（docx → WPS 文字导出）',
   edge: '浏览器（HTML + MathJax → Edge/Chrome 打印）',
 }
 
@@ -523,6 +594,7 @@ const ENGINE_NOTES = {
   xelatex: '数学排版最稳，align 对齐、编号、交叉引用都正常。',
   typst: '数学接近 LaTeX；中文需 CJK 字体，个别符号支持弱于 LaTeX。',
   word: '公式为 Word 原生 OMML，分式/求和/矩阵观感接近 LaTeX；align 对齐点可能偏移，编号与 \\ref 弱。',
+  wps: 'WPS 文字排版，中文样式好；公式转换质量取决于 WPS 版本，复杂公式可能降级为图片。',
   edge: 'MathJax 渲染，行内行间都不错；分页依赖 CSS，离线时公式可能退化为源码。',
 }
 
@@ -549,6 +621,8 @@ function detectEngines() {
   if (process.platform === 'win32') {
     const word = WINWORD_CANDIDATES.find((candidate) => existsSync(candidate))
     if (word) found.word = word
+    const wps = findWpsWriter()
+    if (wps) found.wps = wps
     const browser = BROWSER_CANDIDATES.find((candidate) => existsSync(candidate))
     if (browser) found.edge = browser
   }
@@ -560,10 +634,33 @@ function pandocError(result) {
   return detail || result.error?.message || `exit ${result.status}`
 }
 
-function runXelatex(pandoc, mdPath, pdfPath) {
+function runXelatex(pandoc, mdPath, pdfPath, workDir) {
+  // ctexart 默认拉丁字体缺希腊字母：π 会直接消失。用 newunicodechar 映射到数学符号。
+  const headerPath = join(workDir, 'greek.tex')
+  writeFileSync(headerPath, [
+    '\\usepackage{newunicodechar}',
+    '\\newunicodechar{α}{\\ensuremath{\\alpha}}',
+    '\\newunicodechar{β}{\\ensuremath{\\beta}}',
+    '\\newunicodechar{γ}{\\ensuremath{\\gamma}}',
+    '\\newunicodechar{δ}{\\ensuremath{\\delta}}',
+    '\\newunicodechar{ε}{\\ensuremath{\\epsilon}}',
+    '\\newunicodechar{θ}{\\ensuremath{\\theta}}',
+    '\\newunicodechar{λ}{\\ensuremath{\\lambda}}',
+    '\\newunicodechar{μ}{\\ensuremath{\\mu}}',
+    '\\newunicodechar{ν}{\\ensuremath{\\nu}}',
+    '\\newunicodechar{π}{\\ensuremath{\\pi}}',
+    '\\newunicodechar{ρ}{\\ensuremath{\\rho}}',
+    '\\newunicodechar{σ}{\\ensuremath{\\sigma}}',
+    '\\newunicodechar{τ}{\\ensuremath{\\tau}}',
+    '\\newunicodechar{φ}{\\ensuremath{\\phi}}',
+    '\\newunicodechar{ω}{\\ensuremath{\\omega}}',
+    '\\newunicodechar{Δ}{\\ensuremath{\\Delta}}',
+    '\\newunicodechar{Σ}{\\ensuremath{\\Sigma}}',
+  ].join('\n'), 'utf8')
   const result = spawnSync(pandoc, [
     mdPath, '-o', pdfPath,
     '--pdf-engine=xelatex',
+    '--include-in-header', headerPath,
     '-V', 'documentclass=ctexart',
     '-V', 'geometry:margin=2.2cm',
     '-V', 'fontsize=11pt',
@@ -612,6 +709,59 @@ function runWord(pandoc, mdPath, pdfPath, workDir) {
   return existsSync(pdfPath) ? { ok: true } : { ok: false, why: 'Word 未生成 PDF' }
 }
 
+/** WPS 的 COM 接口是 Kwps.Application，不是 Word.Application；导出方法名也可能不同，所以两级兜底。 */
+function runWps(pandoc, mdPath, pdfPath, workDir) {
+  const docxPath = join(workDir, 'export-wps.docx')
+  const built = spawnSync(pandoc, [mdPath, '-o', docxPath], { encoding: 'utf8', timeout: 180000 })
+  if (built.error) return { ok: false, why: built.error.message }
+  if (built.status !== 0) return { ok: false, why: pandocError(built) }
+
+  const scriptPath = join(workDir, 'wps-export.ps1')
+  writeFileSync(scriptPath, [
+    'param([string]$docx,[string]$pdf)',
+    "$ErrorActionPreference = 'Stop'",
+    '$app = New-Object -ComObject Kwps.Application',
+    'try { $app.Visible = $false } catch {}',
+    'try { $app.DisplayAlerts = 0 } catch {}',
+    'try {',
+    '  $doc = $app.Documents.Open($docx, $false, $true)',
+    '  $done = $false',
+    '  try { $doc.ExportAsFixedFormat($pdf, 17); $done = $true } catch {}',
+    '  if (-not $done) { $doc.SaveAs([ref]$pdf, [ref]17); $done = $true }',
+    '  $doc.Close($false)',
+    '} finally {',
+    '  try { $app.Quit() } catch {}',
+    '}',
+  ].join('\n'), 'utf8')
+
+  const result = spawnSync('powershell.exe', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, docxPath, pdfPath,
+  ], { encoding: 'utf8', timeout: 240000 })
+  if (result.error) return { ok: false, why: result.error.message }
+  if (result.status !== 0) return { ok: false, why: (result.stderr ?? '').split('\n').filter(Boolean).slice(-3).join(' / ') || `exit ${result.status}` }
+  return existsSync(pdfPath) ? { ok: true } : { ok: false, why: 'WPS 未生成 PDF' }
+}
+
+/** 没有 pandoc / xelatex、只有浏览器：自己拼 HTML 再让 Edge 打印。公式降级为源码。 */
+function runEdgeDirect(mdPath, pdfPath, workDir, browser) {
+  const htmlPath = join(workDir, 'export-direct.html')
+  const title = basename(mdPath).replace(/\.md$/i, '')
+  writeFileSync(htmlPath, mdToHtmlDocument(readFileSync(mdPath, 'utf8'), title), 'utf8')
+  const result = spawnSync(browser, [
+    '--headless=new', '--disable-gpu', '--no-pdf-header-footer',
+    `--user-data-dir=${join(workDir, 'profile-direct')}`,
+    '--virtual-time-budget=8000',
+    `--print-to-pdf=${pdfPath}`,
+    `file:///${encodeURI(htmlPath.replace(/\\/g, '/'))}`,
+  ], { encoding: 'utf8', timeout: 180000 })
+  if (result.error) return { ok: false, why: result.error.message }
+  if (!existsSync(pdfPath)) {
+    const detail = (result.stderr ?? '').split('\n').filter(Boolean).slice(-3).join(' / ')
+    return { ok: false, why: detail || `浏览器退出码 ${result.status}` }
+  }
+  return { ok: true }
+}
+
 function runEdge(pandoc, mdPath, pdfPath, workDir) {
   const htmlPath = join(workDir, 'export.html')
   const cssPath = join(workDir, 'print.css')
@@ -644,7 +794,7 @@ function runEdge(pandoc, mdPath, pdfPath, workDir) {
     `--user-data-dir=${profile}`,
     '--virtual-time-budget=12000',
     `--print-to-pdf=${pdfPath}`,
-    `file:///${htmlPath.replace(/\\/g, '/')}`,
+    `file:///${encodeURI(htmlPath.replace(/\\/g, '/'))}`,
   ], { encoding: 'utf8', timeout: 180000 })
   if (result.error) return { ok: false, why: result.error.message }
   if (!existsSync(pdfPath)) {
@@ -653,34 +803,112 @@ function runEdge(pandoc, mdPath, pdfPath, workDir) {
   return { ok: true }
 }
 
+function exportWithoutPandoc(mdPath, pdfPath, workDir, xelatex) {
+  const title = basename(mdPath).replace(/\.md$/i, '')
+  const texPath = join(workDir, 'fallback.tex')
+  writeFileSync(texPath, mdToLatexDocument(readFileSync(mdPath, 'utf8'), title), 'utf8')
+  for (let pass = 0; pass < 2; pass += 1) {
+    const run = spawnSync(xelatex, ['-interaction=nonstopmode', '-halt-on-error', `-output-directory=${workDir}`, texPath], { encoding: 'utf8', timeout: 180000 })
+    if (run.status !== 0) {
+      const detail = (run.stdout ?? '').split('\n').filter((line) => line.trim().startsWith('!')).slice(0, 3).join(' / ')
+        || (run.stderr ?? '').split('\n').slice(-3).join(' / ')
+        || `exit ${run.status}`
+      return { ok: false, why: `xelatex 直连编译失败：${detail}` }
+    }
+  }
+  const produced = join(workDir, 'fallback.pdf')
+  if (!existsSync(produced)) return { ok: false, why: 'xelatex 未生成 PDF' }
+  writeFileSync(pdfPath, readFileSync(produced))
+  return { ok: true }
+}
+
 function exportPdf(args) {
   const rawPath = String(args.md ?? '').trim()
   if (!rawPath) return '请给出要导出的 Markdown 文件路径。'
   const mdPath = isAbsolute(rawPath) ? rawPath : resolve(rawPath)
   if (!existsSync(mdPath)) return `找不到文件：${mdPath}`
+  if (!statSync(mdPath).isFile()) return `不是文件：${mdPath}`
   if (!/\.md$/i.test(mdPath)) return `只支持 .md 文件：${mdPath}`
-
-  const pandoc = findPandoc()
-  if (!pandoc) {
-    return [
-      '没有找到 pandoc，无法直接导出 PDF。三种办法：',
-      '1) 安装 pandoc（https://pandoc.org/installing.html）后重试；',
-      '2) 用 LaTeX 编辑器打开同名 .tex 后编译；',
-      '3) 仅交付 Markdown，并在交付说明里写明 PDF 未生成的原因。',
-    ].join('\n')
+  // 0.26.1：空文档提前拒绝，不再产出一张「看起来成功」的空白 PDF。
+  let mdText
+  try { mdText = readFileSync(mdPath, 'utf8') } catch (error) {
+    return `读取 Markdown 失败：${error instanceof Error ? error.message : String(error)}`
   }
+  if (!mdText.trim()) return `文档为空：${mdPath}（没有正文，不导出空白 PDF）。写点内容再试。`
 
   const dir = args.outDir ? (isAbsolute(String(args.outDir)) ? String(args.outDir) : resolve(String(args.outDir))) : dirname(mdPath)
+  if (!existsSync(dir)) {
+    try { mkdirSync(dir, { recursive: true }) } catch (error) {
+      return `无法创建输出目录 ${dir}：${error instanceof Error ? error.message : String(error)}`
+    }
+  }
   const base = basename(mdPath).replace(/\.md$/i, '')
   const pdfPath = join(dir, `${base}.pdf`)
 
-  const requested = String(args.engine ?? 'auto')
-  const available = detectEngines()
-  const order = ['xelatex', 'typst', 'word', 'edge']
-  const usable = order.filter((id) => available[id])
-  if (requested !== 'auto' && !order.includes(requested)) {
-    return `未知引擎：${requested}。可选 auto / ${order.join(' / ')}。`
+  const requested = String(args.engine ?? 'auto').trim().toLowerCase()
+  const ORDER = ['xelatex', 'typst', 'word', 'wps', 'edge']
+  if (requested !== 'auto' && !ORDER.includes(requested)) {
+    return `未知引擎：${requested}。可选 auto / ${ORDER.join(' / ')}。`
   }
+
+  const pandoc = findPandoc()
+  const xelatexProbe = firstWorking(XELATEX_CANDIDATES, ['--version'])
+  if (!pandoc && !xelatexProbe) {
+    const browser = BROWSER_CANDIDATES.find((candidate) => existsSync(candidate))
+    if (!browser) {
+      if (requested !== 'auto') return `指定引擎 ${requested} 需要 pandoc / xelatex，但本机都没有，也没有 Edge/Chrome。`
+      return [
+        '没有找到 pandoc、xelatex，也没有 Edge/Chrome。',
+        '装一个即可：winget install --id JohnMacFarlane.Pandoc -e',
+        '在此之前只能交付 Markdown，并在说明里写明 PDF 未生成的原因。',
+      ].join('\n')
+    }
+    if (requested !== 'auto' && requested !== 'edge') {
+      return `指定引擎 ${requested} 需要 pandoc / xelatex；本机只有浏览器，可用 engine=edge 或 auto 走内置 HTML 直连。`
+    }
+    const workDir = mkdtempSync(join(tmpdir(), 'qingjin-export-'))
+    try {
+      const direct = runEdgeDirect(mdPath, pdfPath, workDir, browser)
+      if (direct.ok) {
+        const size = Math.round(statSync(pdfPath).size / 1024)
+        return [
+          `已导出：${pdfPath}（${size} KB）`,
+          '引擎：Edge 直连（本机没有 pandoc / xelatex，已用内置 Markdown→HTML 打印）',
+          '注意：公式在本路径下退化为源码（$...$ 原样显示）；要公式排版请装 pandoc 或 xelatex。',
+          `源文件：${mdPath}`,
+        ].join('\n')
+      }
+      return `浏览器直连导出失败：${direct.why}`
+    } finally {
+      try { rmSync(workDir, { recursive: true, force: true }) } catch { /* ignore */ }
+    }
+  }
+
+
+  // 没有 pandoc 但有 xelatex：用内置 Markdown→LaTeX 转换器直连编译。
+  if (!pandoc && xelatexProbe) {
+    if (requested !== 'auto' && requested !== 'xelatex') return `指定引擎 ${requested} 需要 pandoc；本机只有 xelatex（用 engine=xelatex 或 auto 走内置转换）。`
+    const workDir = mkdtempSync(join(tmpdir(), 'qingjin-export-'))
+    try {
+      const fallback = exportWithoutPandoc(mdPath, pdfPath, workDir, xelatexProbe)
+      if (fallback.ok) {
+        const size = Math.round(statSync(pdfPath).size / 1024)
+        return [
+          `已导出：${pdfPath}（${size} KB）`,
+          '引擎：xelatex 直连（本机没有 pandoc，已用内置 Markdown→LaTeX 转换）',
+          '覆盖范围：标题/列表/引用/三线表/代码块/粗斜体/链接/希腊字母；脚注等扩展需装 pandoc。',
+          `源文件：${mdPath}`,
+        ].join('\n')
+      }
+      return fallback.why
+    } finally {
+      try { rmSync(workDir, { recursive: true, force: true }) } catch { /* ignore */ }
+    }
+  }
+
+  const available = detectEngines()
+  const order = ORDER
+  const usable = order.filter((id) => available[id])
   if (requested !== 'auto' && !available[requested]) {
     return `指定引擎 ${requested} 不可用。本机可用：${usable.join(', ') || '（无）'}。`
   }
@@ -701,9 +929,10 @@ function exportPdf(args) {
   try {
     for (const id of chain) {
       let result
-      if (id === 'xelatex') result = runXelatex(pandoc, mdPath, pdfPath)
+      if (id === 'xelatex') result = runXelatex(pandoc, mdPath, pdfPath, workDir)
       else if (id === 'typst') result = runTypst(pandoc, mdPath, pdfPath)
       else if (id === 'word') result = runWord(pandoc, mdPath, pdfPath, workDir)
+      else if (id === 'wps') result = runWps(pandoc, mdPath, pdfPath, workDir)
       else result = runEdge(pandoc, mdPath, pdfPath, workDir)
       if (result.ok) {
         const bytes = existsSync(pdfPath) ? statSync(pdfPath).size : 0
@@ -740,7 +969,6 @@ function exportPdf(args) {
 function humanize(text, lang) {
   const raw = String(text ?? '').trim()
   if (raw.length === 0) return '没有文本可检查：把要诊断的段落贴进来（中英文都可以）。'
-  const sentences = raw.split(/(?<=[。！？.!?])\s*|\n+/).filter((sentence) => sentence.trim().length > 0)
   const hits = []
   for (const rule of STYLE.remove) {
     const re = new RegExp(rule.re, 'g')
@@ -760,7 +988,9 @@ function humanize(text, lang) {
     if (count > rule.max) punct.push({ rule, count })
   }
 
-  const score = Math.max(0, 100 - hits.reduce((sum, hit) => sum + Math.min(12, hit.count * 4), 0) - punct.reduce((sum, item) => sum + Math.min(9, item.count * 3), 0))
+  // 命中任何模板句就封顶 84，避免「已列出防御性铺垫」却仍报「读起来自然」。
+  const rawScore = 100 - hits.reduce((sum, hit) => sum + Math.min(12, 6 + hit.count * 4), 0) - punct.reduce((sum, item) => sum + Math.min(9, item.count * 3), 0)
+  const score = Math.max(0, Math.min(hits.length > 0 ? 84 : 100, rawScore))
   const band = score >= 85 ? '读起来自然' : score >= 70 ? '有模板味，改一轮' : score >= 50 ? '防御性/空话偏多' : '建议重写这一段'
 
   const parts = [`# 表达蒸馏（${band}，${score}/100）`, '']
@@ -803,7 +1033,7 @@ const ROUTES = [
   { id: 'ccf-rebuttal-writer', re: /rebuttal|回复审稿|response|修订说明/i },
   { id: 'ccf-visual-composer', re: /画图|作图|架构图|流程图|可视化|图表美化/i },
   { id: 'ccf-submission-checker', re: /投稿|交稿|匿名|页数|PDF 检查|补充材料/i },
-  { id: 'ccf-paper-to-exemplar', re: /学.*写法|仿写|范文|借鉴.*结构/i },
+  { id: 'ccf-paper-to-exemplar', re: /学.*写法|仿写|范文|借鉴.*结构|精读|读论文|读懂|阅读.*论文/i },
   { id: 'ccf-project-scaffolder', re: /新开|目录|模板|起点/i },
   { id: 'ccf-pipeline-orchestrator', re: /排期|计划|里程碑|下一步.*安排/i },
 ]
@@ -854,7 +1084,7 @@ function workflowReport(args) {
   parts.push('**本插件里可以配合调用的工具**：')
   parts.push('- 结构/模板：`qingjin_outline`、`qingjin_template`')
   parts.push('- 找同方向论文：`qingjin_related`（联网，唯一会外发的工具）')
-  parts.push('- 术语与英文表达：`qingjin_glossary`、`qingjin_phrase`')
+  parts.push('- 术语与英文表达：`qingjin_lookup`（scope=glossary / phrase）')
   parts.push('- 段落与译文自检：`qingjin_check`')
   parts.push('- 精读与导出：`qingjin_pdf_read`、`qingjin_export`')
   parts.push('')
@@ -892,10 +1122,16 @@ function artifactBlock() {
 // ---------------------------------------------------------------- rules
 
 function formatRules(args) {
+  const badVenue = args.venue && !['cvpr', 'eccv', 'aaai', 'icml', ''].includes(String(args.venue).toLowerCase())
+  const badMode = args.scope && !['all', 'skeleton', 'typography', 'venue', 'patterns', 'sci', 'latex', ''].includes(String(args.scope).toLowerCase())
+  const warn = badVenue || badMode
+    ? `> ⚠ 未收录${badVenue ? ` venue=${args.venue}` : ''}${badMode ? ` mode=${args.scope}` : ''}，以下按默认口径输出。\n\n`
+    : ''
   const lang = args.lang === 'en' ? 'en' : 'zh'
   const scope = ['skeleton', 'typography', 'latex', 'venue', 'patterns', 'sci'].includes(args.scope) ? args.scope : 'all'
   const venue = args.venue ? String(args.venue).toLowerCase() : ''
   const parts = []
+  if (warn) parts.push(warn.trim())
   const push = (title, rules) => {
     parts.push(`### ${title}`)
     for (const rule of rules) parts.push(`- ${rule}`)
@@ -952,14 +1188,31 @@ function formatRules(args) {
 
 // ---------------------------------------------------------------- glossary
 
+function glossaryOverview() {
+  const groups = new Map()
+  for (const term of ALL_TERMS()) {
+    const domain = term.domain || '通用'
+    if (!groups.has(domain)) groups.set(domain, [])
+    groups.get(domain).push(term)
+  }
+  const lines = [`# 术语表（共 ${ALL_TERMS().length} 条，按领域精选）`]
+  if (USER_GLOSSARY_ERROR) lines.push('', `> ⚠ 用户词表解析失败（${USER_GLOSSARY_ERROR.slice(0, 80)}）；已忽略。检查 JSON 是否合法。`)
+  for (const [domain, list] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 6)) {
+    lines.push('', `## ${domain}（${list.length} 条）`)
+    for (const term of list.slice(0, 3)) lines.push(`- ${term.en} → ${term.zh}${term.note ? `（${term.note}）` : ''}`)
+  }
+  lines.push('', `> 给 query 可精确查一条；自定义词条放 ${userGlossaryPath()}（改完即生效，无需重启）。`)
+  return lines.join('\n')
+}
+
 function lookupGlossary(args) {
   const query = String(args.query ?? '').trim().toLowerCase()
   const limit = Number.isFinite(args.limit) ? Math.max(1, Math.min(20, Math.trunc(args.limit))) : 6
   if (!query) {
-    return `请输入要查的术语（中英文均可），例如 concolic execution 或 混合执行。当前收录 ${GLOSSARY.terms.length} 条。`
+    return glossaryOverview()
   }
   const hits = []
-  for (const term of GLOSSARY.terms) {
+  for (const term of ALL_TERMS()) {
     const fields = [term.en, term.zh, ...(term.alt ?? []), term.domain, term.note ?? ''].join(' ').toLowerCase()
     if (!fields.includes(query)) continue
     let score = 0
@@ -971,13 +1224,13 @@ function lookupGlossary(args) {
   }
   hits.sort((a, b) => b.score - a.score)
   if (hits.length === 0) {
-    return `没有收录「${args.query}」。可以先用 qingjin_phrase 查句式，或把该术语补进 data/glossary.json。`
+    return `没有收录「${args.query}」。可以先用 qingjin_lookup(scope=phrase) 查句式，或把该术语补进 data/glossary.json。`
   }
   const out = []
   for (const { term } of hits.slice(0, limit)) {
-    out.push(`### ${term.en} → ${term.zh}`)
+    out.push(`### ${term.en}${term._enFallback ? '（缺 en，按中文索引）' : ''} → ${term.zh}`)
     if (term.alt?.length) out.push(`其它译法：${term.alt.join(' / ')}`)
-    out.push(`领域：${term.domain}`)
+    out.push(`领域：${term.domain || '自定义'}`)
     if (term.note) out.push(`注意：${term.note}`)
     out.push('')
   }
@@ -987,14 +1240,43 @@ function lookupGlossary(args) {
 // ---------------------------------------------------------------- translation check
 
 const TRANSLATION_RULES = {
-  cnNumber: /([一二三四五六七八九十两])(个|倍|次|项|种|成|分之)/,
+  cnNumber: /([二三四五六七八九十两])(个|倍|次|项|种|成|分之)|一(倍|成|分之)/,
   longEnglishRun: /[A-Za-z][A-Za-z-]*(?:\s+[A-Za-z][A-Za-z-]*){5,}/,
   asciiPunct: /[,;:?!]/,
   cjkPunct: /[，；：？！]/,
   constraintWord: /(至多|不超过|至少|小于|大于|不小于|不大于)/,
 }
 
-function checkTranslation(text) {
+/** 跨段一致性：数字、术语、篇幅三项。用于「英文原文 vs 中文译文」或「摘要 vs 结论」。 */
+function consistencyReport(text, compare) {
+  const nums = (s) => new Set((String(s).match(/\d+(?:\.\d+)?/g) ?? []).map((n) => n.replace(/\.0+$/, '')))
+  const a = nums(text)
+  const b = nums(compare)
+  const onlyA = [...a].filter((n) => !b.has(n))
+  const onlyB = [...b].filter((n) => !a.has(n))
+
+  const lower = String(text).toLowerCase()
+  const compareLower = String(compare).toLowerCase()
+  const termIssues = []
+  for (const term of ALL_TERMS()) {
+    const inA = lower.includes(String(term.zh).toLowerCase()) || lower.includes(String(term.en).toLowerCase())
+    const inB = compareLower.includes(String(term.zh).toLowerCase()) || compareLower.includes(String(term.en).toLowerCase())
+    if (inA !== inB) termIssues.push(`${term.zh} / ${term.en}（${inA ? '本段有、对照无' : '对照有、本段无'}）`)
+  }
+
+  const lines = ['', '## 与对照文本的一致性']
+  lines.push(onlyA.length === 0 && onlyB.length === 0
+    ? '- 数字：两边一致。'
+    : `- 数字：本段独有 ${onlyA.slice(0, 6).join('、') || '（无）'}；对照独有 ${onlyB.slice(0, 6).join('、') || '（无）'}。`)
+  lines.push(termIssues.length === 0
+    ? '- 术语：未发现单边出现的词条。'
+    : `- 术语：${termIssues.slice(0, 5).join('；')}${termIssues.length > 5 ? ` 等 ${termIssues.length} 条` : ''}。`)
+  const ratio = String(text).replace(/\s/g, '').length / Math.max(1, String(compare).replace(/\s/g, '').length)
+  lines.push(`- 篇幅比：${ratio.toFixed(2)}（中文/对照；中英互译经验值 0.5–0.8，偏离说明有漏译或扩写）。`)
+  return lines.join('\n').replace(/^\n+/, '')
+}
+
+function checkTranslation(text, compare) {
   const raw = String(text ?? '').trim()
   if (raw.length === 0) return '没有正文可检查：把要校核的中文译文贴进 text。'
   const issues = []
@@ -1016,7 +1298,7 @@ function checkTranslation(text) {
   if (longEnglish) penalize(12, '高', `有连续 6 个以上英文单词未译：${longEnglish[0].slice(0, 60)}…（专有名词可保留，整句不行）`)
 
   const missingEnglish = []
-  for (const term of GLOSSARY.terms) {
+  for (const term of ALL_TERMS()) {
     if (!raw.includes(term.zh)) continue
     if (raw.toLowerCase().includes(term.en.toLowerCase())) continue
     missingEnglish.push(`${term.zh}（${term.en}）`)
@@ -1058,6 +1340,9 @@ function checkTranslation(text) {
     parts.push(...notes)
     parts.push('')
   }
+  if (compare) parts.push(consistencyReport(raw, String(compare)))
+
+  if (parts[parts.length - 1] !== '') parts.push('')
   parts.push('## 回译检查清单')
   parts.push('- [ ] 数字、比例、倍数与原文字面一致')
   parts.push('- [ ] 比较方向（at most / at least / less than）没有译反')
@@ -1090,7 +1375,8 @@ function topicIdeas(cluster) {
 
 // ---------------------------------------------------------------- phrases
 
-function searchPhrases({ section, intent, query, limit }) {
+function searchPhrases({ section: sectionIn, intent, query, limit }) {
+  const section = sectionIn ? String(sectionIn).trim().toLowerCase().replace(/^introduction$/, 'intro') : ''
   const max = Number.isFinite(limit) ? Math.max(1, Math.min(10, Math.trunc(limit))) : 3
   const needle = (query ?? '').trim().toLowerCase()
   const scored = []
@@ -1155,14 +1441,19 @@ function count(re, text) {
   return matches ? matches.length : 0
 }
 
-function checkSection(section, text) {
-  if (section === 'translation') return checkTranslation(text)
-  const rules = SECTION_RULES[section]
+function checkSection(section, text, compare) {
+  const key = String(section ?? '').trim().toLowerCase().replace(/^intro$/, 'introduction')
+  if (key === 'translation') return checkTranslation(text, compare)
+  const rules = SECTION_RULES[key]
   if (!rules) return `未知章节：${section}。可选：${Object.keys(SECTION_RULES).join(', ')}, translation`
   const raw = String(text ?? '').trim()
   if (raw.length === 0) return '没有正文可检查：请把要自查的段落贴进 text。'
 
-  const words = raw.split(/\s+/).filter(Boolean)
+  // 中文段落不能用空格分词：按 CJK 字符数折算，并改用字符阈值。
+  const cjkChars = (raw.match(/[\u4e00-\u9fff]/g) ?? []).length
+  const isCjk = cjkChars > 0 && cjkChars >= raw.replace(/\s/g, '').length * 0.3
+  const latinWords = (raw.match(/[A-Za-z0-9][A-Za-z0-9'’-]*/g) ?? []).length
+  const words = isCjk ? latinWords + Math.round(cjkChars / 1.7) : raw.split(/\s+/).filter(Boolean).length
   const sentenceList = sentencesOf(raw)
   const issues = []
   const notes = []
@@ -1173,8 +1464,16 @@ function checkSection(section, text) {
   }
 
   // length
-  if (words.length < rules.minWords) penalize(10, '中', `篇幅偏短（${words.length} 词，建议 ≥ ${rules.minWords}）：检查是否漏掉了某个结构要素。`)
-  if (words.length > rules.maxWords) penalize(6, '低', `篇幅偏长（${words.length} 词，建议 ≤ ${rules.maxWords}）：把次要细节移到补充材料，或拆成两节。`)
+  if (isCjk) {
+    const minChars = rules.minWords * 1.6
+    const maxChars = rules.maxWords * 1.6
+    const length = raw.replace(/\s/g, '').length
+    if (length < minChars) penalize(10, '中', `篇幅偏短（${length} 字，中文建议 ≥ ${Math.round(minChars)} 字）：检查是否漏掉了某个结构要素。`)
+    if (length > maxChars) penalize(6, '低', `篇幅偏长（${length} 字，中文建议 ≤ ${Math.round(maxChars)} 字）：把次要细节移到补充材料，或拆成两节。`)
+  } else {
+    if (words < rules.minWords) penalize(10, '中', `篇幅偏短（${words} 词，建议 ≥ ${rules.minWords}）：检查是否漏掉了某个结构要素。`)
+    if (words > rules.maxWords) penalize(6, '低', `篇幅偏长（${words} 词，建议 ≤ ${rules.maxWords}）：把次要细节移到补充材料，或拆成两节。`)
+  }
 
   // tense
   const past = count(RE.past, raw)
@@ -1190,10 +1489,10 @@ function checkSection(section, text) {
   }
 
   // section-specific content checks
-  if (section === 'abstract') {
+  if (key === 'abstract') {
     const elements = [
-      ['目标句', /\b(aims?|we (?:ask|test|investigate|examine|address)|here we|this study)\b/i],
-      ['方法句', /\b(used|using|we (?:perform|apply|measure|model)|were (?:collected|measured|compared))\b/i],
+      ['目标句', /\b(aims?|we (?:ask|test|investigate|examine|address|propose|present|introduce|develop|design)|here we|this (?:study|paper))\b/i],
+      ['方法句', /\b(used|using|we (?:perform|apply|measure|model|propose|present|introduce|design)|were (?:collected|measured|compared)|framework|module|adapter)\b/i],
       ['结果句（含数字）', /\d/],
       ['结论句', /\b(suggest|indicat|conclude|show that|provide a basis)\b/i],
     ]
@@ -1203,29 +1502,29 @@ function checkSection(section, text) {
     if (RE.citation.test(raw)) penalize(8, '高', '摘要里出现引用标记：摘要应独立可读，不放参考文献。')
   }
 
-  if (section === 'introduction') {
+  if (key === 'introduction') {
     if (!RE.citation.test(raw)) penalize(10, '高', '引言没有引用标记：中心性宣称与文献评述都需要出处。')
-    if (!/\b(however|but|yet|remains?|few|little|unclear|gap|lack)\b/i.test(raw)) {
+    if (!/\b(however|but|yet|remains?|few|little|unclear|gap|lack)\b/i.test(raw) && !/(然而|但是|不过|目前仍|仍存在|仍面临|尚未|不足|缺乏|空白|有待)/.test(raw)) {
       penalize(12, '高', '没有识别出「空白」信号（however / remains / few / gap）：CARS Move 2 缺失，读者不知道为什么要读下去。')
     }
-    if (!/\b(we|this (?:study|paper)|here)\b/i.test(raw)) {
+    if (!/\b(we|this (?:study|paper)|here)\b/i.test(raw) && !/(本文|本研究|我们|这项工作|该研究)/.test(raw)) {
       penalize(10, '高', '没有出现「本文做了什么」（we / this study）：CARS Move 3 缺失。')
     }
   }
 
-  if (section === 'results') {
+  if (key === 'results') {
     if (!RE.digits.test(raw)) penalize(12, '高', '结果段没有数字：没有量化的陈述无法支撑结论。')
     if (RE.interpretation.test(raw)) penalize(8, '中', '结果里出现解释性连接词（because / suggests / therefore）：解释应放到讨论。')
   }
 
-  if (section === 'discussion') {
+  if (key === 'discussion') {
     if (!RE.limitation.test(raw)) penalize(10, '中', '讨论没有交代局限：主动写 validity threats 会提高可信度。')
     if (!RE.hedge.test(raw) && count(RE.overclaim, raw) > 0) {
       penalize(12, '高', '出现了过强断言（proves / clearly / always）却没有任何限定：加上 may / suggests / within {condition}。')
     }
   }
 
-  if (section === 'conclusion') {
+  if (key === 'conclusion') {
     if (RE.newData.test(raw)) penalize(8, '中', '结论里出现新数据/新实验：结论只总结已呈现的结果。')
   }
 
@@ -1238,7 +1537,7 @@ function checkSection(section, text) {
   if (longSentences.length > 0) penalize(4, '低', `${longSentences.length} 个句子超过 45 词：拆句，读者工作记忆有限。`)
 
   const passive = count(/\b(?:was|were|is|are|been|be)\s+\w+(?:ed|en)\b/i, raw)
-  if (passive > sentenceList.length && section !== 'methods') {
+  if (passive > sentenceList.length && key !== 'methods') {
     notes.push(`- [提示] 被动结构 ${passive} 处，句数 ${sentenceList.length}：方法节可接受，其他节适当改主动。`)
   }
 
@@ -1258,10 +1557,11 @@ function checkSection(section, text) {
   const band = score >= 85 ? '结构稳定' : score >= 70 ? '需要一轮修改' : score >= 50 ? '问题较多' : '建议重写该段'
 
   const parts = []
-  parts.push(`# 自检报告 · ${section}（${band}，${score}/100）`)
+  parts.push(`# 自检报告 · ${key}（${band}，${score}/100）`)
   parts.push('')
-  parts.push(`篇幅：${words.length} 词 / ${sentenceList.length} 句`)
+  parts.push(`篇幅：${isCjk ? `${raw.replace(/\s/g, '').length} 字` : `${words} 词`} / ${sentenceList.length} 句`)
   parts.push('')
+  if (compare) parts.push(consistencyReport(raw, String(compare)))
   if (issues.length > 0) {
     parts.push('## 需要修改')
     parts.push(...issues)
@@ -1276,7 +1576,8 @@ function checkSection(section, text) {
     parts.push(...notes)
     parts.push('')
   }
-  const fixes = PHRASES.entries.filter((entry) => entry.section === section).slice(0, 2)
+
+  const fixes = PHRASES.entries.filter((entry) => entry.section === key).slice(0, 2)
   if (fixes.length > 0) {
     parts.push('## 可以直接借用的句式')
     for (const entry of fixes) parts.push(`- ${entry.zh}：${entry.en[0]}`)
@@ -1289,27 +1590,35 @@ function checkSection(section, text) {
 const SYSTEM_PROMPT = [
   'You have a bundled research-writing assistant for undergraduates (青衿科研 / Qingjin Research).',
   'When the user is shaping a paper, a thesis section, a 大创 proposal, or an English→Chinese translation — asking how to structure it, how to phrase it in English, whether a paragraph is acceptable, or which Chinese term is standard —',
-  'For a multi-step research task ("这个选题值不值得做", "怎么设计消融", "帮我评审"), call `qingjin_workflow` first: it routes to the right stage and names the next tool; then use the specific tools.',
-  'call `qingjin_outline` for the section skeleton, `qingjin_phrase` for English templates, `qingjin_glossary` for the canonical Chinese term and the mistake people make, and `qingjin_check` to diagnose a paragraph (section=translation reviews a Chinese translation).',
+  'For a multi-step research task ("这个选题值不值得做", "怎么设计消融", "帮我评审", "精读这篇论文并出 pdf"), call `qingjin_flow` first: action=start returns the fixed step list, action=route maps a bare task (选题/评审/投稿) to a research stage for that kind of task and names only the next tool to call. Advance with action=advance after each step; do not run tools that are not on the current step, and do not re-run completed steps.',
+  'for two-way translation (中文稿→英文 or English→中文), call `qingjin_translate` with direction and section, then `qingjin_check(section=translation)` on the result; it gives patterns and pitfalls, not a finished translation.',
+  'Sentence templates are scaffolding only: rewrite them with your own data before submission, then run `qingjin_humanize` as the final pass.',
+  'call `qingjin_outline` for the section skeleton, `qingjin_lookup(scope=phrase)` for English templates, `qingjin_lookup(scope=glossary)` for the canonical Chinese term and the mistake people make, and `qingjin_check` to diagnose a paragraph (section=translation reviews a Chinese translation).',
   'When the user wants something to fill in rather than an outline — a draft template or a LaTeX manuscript — call `qingjin_template` with format=md or format=tex.',
   'When the user asks for a deep read (中文精读/精读文章) of a downloaded paper, call `qingjin_pdf_read` first, then write a complete article — not an outline.',
-  'Save the article as `精读-<短标题>.md` in the SAME folder as the source PDF, then call `qingjin_export` so a `.pdf` with the same name lands beside it. Deliver both paths.',
+  'Save the article as `精读-<短标题>.md` in the SAME folder as the source PDF, then try `qingjin_export` so a `.pdf` with the same name lands beside it. If no export engine is available (no pandoc / no engine), keep the .md, tell the user exactly which dependency is missing and how to install it — never claim a PDF exists.',
   'If the user gave a path such as C:\\…\\原文\\XXX.pdf, derive the folder from it; never scatter outputs into the workspace when a source folder exists.',
   'Use a Markdown bullet list for the metadata block (title/authors/venue), not a blockquote, so the PDF keeps one item per line.',
   'The article must be 1500–3000 Chinese characters and contain, in order: 一句话结论 / 研究问题与动机 / 方法拆解（3–5 个关键设计，每条配一句原文英文短引并给中译）/ 实验与数据 / 主要结果（用表格列数字与对照）/ 贡献 / 局限 / 与同方向工作的位置（可调用 `qingjin_related` 补充 2–3 篇对照）/ 可复用的写作句式（3–5 条）/ 术语表（中英对照）。',
   'Only quote numbers and sentences that appear in the extracted text; mark any inference as 推测. If the PDF has no text layer, say so instead of guessing.',
   'When the user wants to know which other papers in the field matter — how well received the venues are, where to download them — call `qingjin_related` with the paper title, DOI or direction: it reports venue tiers and open-access links, and separates preprints from peer-reviewed venues.',
   'State that tiers come from the plugin\'s built-in CCF-style table, so an unlisted venue means "not in the table", not "low quality".',
-  'For a .tex deliverable: generate it, write it to a file in the workspace, and compile/verify it with the latex_look tool before calling the layout done.',
+  'For a .tex deliverable: generate it, write it to a file in the workspace, and compile it and verify with `qingjin_export` (or report the compiler log) before calling the layout done.',
   'Generate the skeleton before drafting prose, and run the check on every paragraph the user writes.',
   'Never write the whole paper for the user: produce structure, templates, phrasing options, and diagnostics so the student does the writing.',
   'Answer in the language the user used; keep the English templates in English.',
 ].join(' ')
 
+export const TOOL_NAMES = [
+  'qingjin_outline', 'qingjin_template', 'qingjin_lookup', 'qingjin_translate',
+  'qingjin_pdf_read', 'qingjin_related', 'qingjin_humanize',
+  'qingjin_flow', 'qingjin_export', 'qingjin_check', 'qingjin_debug',
+]
+
 export const inject = ['tools', 'systemPrompt']
 
 /** Exposed for the smoke test only; not part of the plugin's model-facing surface. */
-export const __test = { tierOf, normalizeVenue }
+export const __test = { tierOf, normalizeVenue, garbleRatio }
 
 export function apply(ctx) {
   ctx.systemPrompt?.section({ name: 'bundled:qingjin', order: 1100, text: SYSTEM_PROMPT })
@@ -1320,10 +1629,10 @@ export function apply(ctx) {
       'Get a section-by-section skeleton for a paper or a 大创 proposal: purpose, tense, word budget, structural moves (IMRaD / CARS / C-C-C), self-check list, and starter sentences. ' +
       'Use it before drafting any prose. Kinds: research (full IMRaD), proposal (大创申报书), or one section id (abstract, introduction, methods, results, discussion, conclusion).',
     parameters: {
-      kind: { type: 'string', required: true, description: 'research | proposal | abstract | introduction | methods | results | discussion | conclusion' },
-      topic: { type: 'string', description: 'Working title or research question, shown in the outline header.' },
-      words: { type: 'number', description: 'Target total word count for a research paper (defaults to 5000).' },
-      cluster: { type: 'string', description: 'For kind=proposal: a DLUT cluster to suggest topics for (海洋工程 / 装备制造 / 化学化工 / 信息科学 / 管理 / 数理).' },
+      kind: { type: 'string', required: true, description: 'research | proposal | title | a section id' },
+      topic: { type: 'string', description: 'working title' },
+      words: { type: 'number', description: 'target words (default 5000)' },
+      cluster: { type: 'string', description: 'proposal cluster' },
     },
     execute(args) {
       const kind = String(args.kind ?? 'research').trim().toLowerCase()
@@ -1341,20 +1650,17 @@ export function apply(ctx) {
   ctx.tools.register(makeTool({
     name: 'qingjin_template',
     description:
-      'Produce a fill-in template (not just an outline): a paper draft or a 大创 proposal, as Markdown or as compilable LaTeX source. ' +
-      'Every section carries a writing instruction, a ready-to-rewrite placeholder sentence and, for papers, a pre-submission checklist. ' +
-      'Use format=tex when the user wants a .tex file; the Chinese template uses ctexart and compiles with xelatex. ' +
-      'After generating LaTeX, write it to a file and verify the layout with the latex_look tool instead of claiming it looks right.',
+      'Fill-in template (not an outline): paper draft or 大创 proposal, as Markdown or compilable LaTeX (ctexart for Chinese). Sections carry instructions, placeholder sentences and a checklist. After generating .tex, verify by exporting with `qingjin_export`.',
     parameters: {
       kind: { type: 'string', required: true, description: 'paper | proposal' },
       format: { type: 'string', description: 'md (default) | tex' },
       lang: { type: 'string', description: 'zh (default) | en' },
       title: { type: 'string', description: 'Paper title or project name.' },
       author: { type: 'string', description: 'Author name.' },
-      affiliation: { type: 'string', description: 'Institution (defaults to 大连理工大学).' },
+      affiliation: { type: 'string', description: 'Institution' },
       advisor: { type: 'string', description: 'Supervisor, proposal only.' },
-      keywords: { type: 'string', description: 'Keywords, separated by ； or ;.' },
-      date: { type: 'string', description: 'Date string; defaults to today.' },
+      keywords: { type: 'string', description: 'Keywords' },
+      date: { type: 'string', description: 'Date' },
     },
     execute(args) {
       return buildTemplate({
@@ -1372,22 +1678,61 @@ export function apply(ctx) {
   }))
 
   ctx.tools.register(makeTool({
-    name: 'qingjin_phrase',
+    name: 'qingjin_lookup',
     description:
-      'Look up English academic sentence templates by section and rhetorical intent (abstract/intro/methods/results/discussion/conclusion/transition/response), with Chinese usage notes and a misuse warning. ' +
-      'Templates contain {placeholders} to replace. Use it to turn "I know what to say" into "I know how to say it".',
+      'Bundled reference lookup. scope=glossary: canonical term + common mistranslation; scope=phrase: English sentence templates by section/intent; scope=rules: skeleton, typography, CVPR/ECCV/AAAI/ICML formats.',
     parameters: {
-      section: { type: 'string', description: 'abstract | intro | methods | results | discussion | conclusion | transition | response' },
-      intent: { type: 'string', description: 'e.g. background, gap, purpose, result, limitation, interpretation, disagree' },
-      query: { type: 'string', description: 'Optional free-text match over the Chinese note and English templates.' },
-      limit: { type: 'number', description: 'Number of entries to return, 1-10 (default 3).' },
+      scope: { type: 'string', required: true, description: 'glossary | phrase | rules' },
+      query: { type: 'string', description: 'glossary: term; phrase: free-text match' },
+      section: { type: 'string', description: 'phrase: abstract | intro | methods | results | discussion | conclusion' },
+      intent: { type: 'string', description: 'phrase: gap | result | limitation | …' },
+      venue: { type: 'string', description: 'rules: cvpr | eccv | aaai | icml' },
+      mode: { type: 'string', description: 'rules: all | skeleton | typography | venue | patterns | sci | latex' },
+      lang: { type: 'string', description: 'rules: zh | en' },
+      limit: { type: 'number', description: 'entries (default 3)' },
     },
     execute(args) {
-      return searchPhrases({
-        section: args.section ? String(args.section) : undefined,
-        intent: args.intent ? String(args.intent) : undefined,
-        query: args.query ? String(args.query) : undefined,
-        limit: Number(args.limit),
+      const scope = String(args.scope ?? '').trim()
+      if (scope === 'glossary') {
+        return lookupGlossary({ query: args.query ? String(args.query) : '', limit: Number(args.limit) })
+      }
+      if (scope === 'phrase') {
+        return searchPhrases({
+          section: args.section ? String(args.section) : undefined,
+          intent: args.intent ? String(args.intent) : undefined,
+          query: args.query ? String(args.query) : undefined,
+          limit: Number(args.limit),
+        })
+      }
+      if (scope === 'rules') {
+        return formatRules({
+          scope: args.mode ? String(args.mode) : 'all',
+          venue: args.venue ? String(args.venue) : '',
+          lang: args.lang ? String(args.lang) : 'zh',
+        })
+      }
+      return 'scope 只能是 glossary / phrase / rules。'
+    },
+  }))
+
+  ctx.tools.register(makeTool({
+    name: 'qingjin_translate',
+    description:
+      'Two-way translation coach (zh2en/en2zh). Returns the decisions to make first, sentence patterns distilled from 8 CVPR/ECCV/AAAI/ICML papers, terms to keep consistent, Chinese-English pitfalls, and a checklist. Not a finished translation; follow with qingjin_check(section=translation).',
+    parameters: {
+      direction: { type: 'string', description: 'zh2en | en2zh (auto-detected from the text when omitted)' },
+      domain: { type: 'string', description: 'bio | chem | math | physics — use that field\'s sentence patterns instead of the CV defaults' },
+      section: { type: 'string', description: 'abstract | intro | methods | results | discussion | conclusion' },
+      text: { type: 'string', description: 'The paragraph to work on. Omit to get the generic patterns for that section.' },
+    },
+    execute(args) {
+      return translateReport({
+        data: TRANSLATE,
+        terms: TRANSLATE.terms,
+        direction: args.direction ? String(args.direction).trim() : '',
+        section: args.section ? String(args.section) : '',
+        domain: args.domain ? String(args.domain).trim() : '',
+        text: args.text,
       })
     },
   }))
@@ -1395,27 +1740,23 @@ export function apply(ctx) {
   ctx.tools.register(makeTool({
     name: 'qingjin_pdf_read',
     description:
-      'Read a local PDF (typically an arXiv or journal paper) and return its extracted plain text, page count and limits. ' +
-      'Use it when the user wants a Chinese walkthrough of a paper they downloaded: read first, then write the analysis yourself — never invent numbers that are not in the extracted text. ' +
-      'Scanned PDFs with no text layer are reported as such; this tool does not OCR. ' +
-      'Paginate with offset/maxChars when the paper is long; the output names the next offset.',
+      'Read a local PDF and return extracted text with page/char limits. Scanned PDFs without a text layer are reported and no OCR is attempted. Paginate with offset/maxChars; long slices are trimmed to head+tail. Never invent numbers absent from the text.',
     parameters: {
       path: { type: 'string', required: true, description: 'Absolute path, or a path relative to the current working directory.' },
       offset: { type: 'number', description: 'Character offset to start from (default 0).' },
-      maxChars: { type: 'number', description: 'Characters to return this call, 2000-120000 (default 60000).' },
+      maxChars: { type: 'number', description: 'Characters to return this call, 2000-120000 (default 8000; >12000 is trimmed to head 10k + tail 2k).' },
+      page: { type: 'number', description: 'Read one page (1-based) when the extractor knows page boundaries; overrides offset.' },
+      find: { type: 'string', description: 'Search a term and return up to 8 matches with page numbers and context, instead of the text slice.' },
     },
     execute(args) {
-      return readPdf({ path: args.path, offset: Number(args.offset), maxChars: Number(args.maxChars) })
+      return readPdf({ path: args.path, offset: Number(args.offset), maxChars: Number(args.maxChars), page: Number(args.page), find: args.find })
     },
   }))
 
   ctx.tools.register(makeTool({
     name: 'qingjin_related',
     description:
-      'Go online (OpenAlex) from one seed paper to the rest of its field: identify the venue of each candidate, mark built-in CCF-style tiers (A/B), and return open-access download links. ' +
-      'Seed can be a title, a DOI, an arXiv number, or a direction keyword. Candidates come from related_works, citations in both directions, and the seed topic tags, so sub-directions are covered. ' +
-      'Requires network; the only data sent is the query. Preprints (arXiv, Preprints.org, DOAJ) are labelled instead of being called top venues. ' +
-      'Set OPENALEX_API_KEY in the environment for a dedicated quota.',
+      'Online (OpenAlex) field map from one seed: title, DOI, arXiv id, or keywords. Marks venue tiers (A/B) from the built-in CCF-style table, labels preprints, returns OA links. Network only for the query; OPENALEX_API_KEY raises quota.',
     parameters: {
       query: { type: 'string', required: true, description: 'Paper title, DOI (10.xxxx/...), arXiv id, or direction keywords.' },
       limit: { type: 'number', description: 'How many ranked candidates to print, 3-20 (default 8).' },
@@ -1435,9 +1776,7 @@ export function apply(ctx) {
   ctx.tools.register(makeTool({
     name: 'qingjin_humanize',
     description:
-      'Diagnose "AI-flavoured" academic prose: defensive preambles (「为了严谨起见」/It is worth noting), empty promises, repeated caveats, process narration, self-deprecation, mechanical 首先/其次/最后 enumeration, vague "显著优于" claims, internal version narration, and em-dash/semicolon density. ' +
-      'It names the pattern, says why it hurts, and gives a rewrite direction — while listing what must be kept (negative results, calibrated uncertainty, citations, disclosures). ' +
-      'Distilled from the CCFA-Skills humanization discipline (MIT), rewritten here. Use it before polishing wording: fix sentence relations first, surface style second.',
+      'Diagnose "AI-flavoured" prose: defensive preambles (为了严谨起见/It is worth noting), empty promises, process narration, 首先/其次/最后 enumeration, vague 显著优于 claims. Names the pattern, why it hurts, and the rewrite direction, plus what must stay (negative results, uncertainty, citations). Rewritten from CCFA-Skills (MIT).',
     parameters: {
       text: { type: 'string', required: true, description: 'The paragraph (Chinese or English) to diagnose.' },
     },
@@ -1446,83 +1785,71 @@ export function apply(ctx) {
     },
   }))
 
+
   ctx.tools.register(makeTool({
-    name: 'qingjin_workflow',
+    name: 'qingjin_flow',
     description:
-      'Route a research-writing task to the right workflow step: it names which stage (选题 / 文献 / 实验 / 实现 / 核验 / 评审 / 写作 / 表达 / 回复 / 绘图 / 投稿) the request belongs to, what that step produces, and which of this plugin\'s tools to call next. ' +
-      'The routing skeleton follows the MIT-licensed CCFA-Skills family (18 skills, humanization → common → specific); the text here is rewritten, not copied. ' +
-      'mode=review returns the seven review dimensions and report skeleton; mode=artifacts the output-folder contract; mode=venues the hard requirements that differ between CVPR / ICLR / AAAI.',
+      'Multi-step workflow: start(flow) returns the steps and the ONE next tool; advance marks a step done; status shows progress; route maps a task to 18 research stages (mode=review/venues). State persists across turns. Prefer it for pipelines, not one-off lookups.',
     parameters: {
-      task: { type: 'string', description: 'The user\'s task in their own words, e.g. 帮我看这个选题值不值得做. Omit to list all skills.' },
-      mode: { type: 'string', description: 'route (default) | review | artifacts | venues | all' },
+      action: { type: 'string', required: true, description: 'start | advance | status | route' },
+      flow: { type: 'string', description: 'deepread | write-section | submit-check' },
+      flowId: { type: 'string', description: 'id returned by start' },
+      note: { type: 'string', description: 'step result or artifact path' },
+      engineAvailable: { type: 'boolean', description: 'PDF engine available? false skips export' },
+      task: { type: 'string', description: 'task text (action=route)' },
+      mode: { type: 'string', description: 'route | review | artifacts | venues | all' },
     },
     execute(args) {
-      return workflowReport({ task: args.task, mode: args.mode ? String(args.mode) : 'route' })
+      const action = String(args.action ?? '').trim()
+      if (action === 'start') return startFlow(String(args.flow ?? '').trim(), args.engineAvailable === undefined ? {} : { engine: args.engineAvailable })
+      if (action === 'advance') return advanceFlow(String(args.flowId ?? '').trim(), String(args.note ?? ''), args.engineAvailable === undefined ? {} : { engine: args.engineAvailable })
+      if (action === 'status') return flowStatus(args.flowId ? String(args.flowId).trim() : undefined)
+      if (action === 'route') return workflowReport({ task: args.task, mode: args.mode ? String(args.mode) : 'route' })
+      return 'action 只能是 start / advance / status / route。'
     },
   }))
 
   ctx.tools.register(makeTool({
     name: 'qingjin_export',
     description:
-      'Export a finished Markdown article to PDF, writing it beside the .md in the same folder. ' +
-      'It tries a chain of engines and reports which one it used: xelatex + ctexart (best math), typst, Word (docx native OMML equations → Word export), then Edge/Chrome (HTML + MathJax print). ' +
-      'Use it right after writing a 精读 article so the user gets both .md and .pdf in the source paper\'s folder. ' +
-      'When no engine works it lists every failure and the install options instead of pretending the PDF exists.',
+      'Export Markdown to a PDF beside the .md. Engine chain: xelatex → typst → Word → WPS → Edge/Chrome; without pandoc it uses a built-in Markdown→LaTeX converter. Reports which engine ran; when none works it lists failures instead of pretending.',
     parameters: {
       md: { type: 'string', required: true, description: 'Path to the finished .md file.' },
       outDir: { type: 'string', description: 'Output folder; defaults to the folder of the .md file.' },
-      engine: { type: 'string', description: 'auto (default) | xelatex | typst | word | edge — force one engine instead of the fallback chain.' },
+      engine: { type: 'string', description: 'auto (default) | xelatex | typst | word | wps | edge — force one engine instead of the fallback chain.' },
     },
     execute(args) {
       return exportPdf({ md: args.md, outDir: args.outDir, engine: args.engine })
     },
   }))
 
-  ctx.tools.register(makeTool({
-    name: 'qingjin_rules',
-    description:
-      'State the plugin\'s own generation rules: how a paper skeleton is produced (one contribution, abstract elements, CARS moves, tense, word budgets) and the basic typography for Chinese and English manuscripts (page, body font, heading sizes, figure/table captions, references) plus what the LaTeX templates set by default. ' +
-      'Use it when the user asks how the skeleton is decided or what font/format rules to follow; the output is a checklist they can apply in Word or in the .tex.',
-    parameters: {
-      scope: { type: 'string', description: 'all (default) | skeleton | typography | venue | patterns | sci | latex' },
-      venue: { type: 'string', description: 'For scope=venue: cvpr | eccv | aaai | icml (omit for all four).' },
-      lang: { type: 'string', description: 'zh (default) | en — which typography set to show' },
-    },
-    execute(args) {
-      return formatRules({
-        scope: args.scope ? String(args.scope) : 'all',
-        venue: args.venue ? String(args.venue) : '',
-        lang: args.lang ? String(args.lang) : 'zh',
-      })
-    },
-  }))
+
 
   ctx.tools.register(makeTool({
-    name: 'qingjin_glossary',
+    name: 'qingjin_debug',
     description:
-      'Look up a Chinese/English academic term in the bundled glossary: canonical translation, accepted alternatives, field, and the mistake people actually make (e.g. concolic execution → 混合执行, proof rate → 证明成功率). ' +
-      'Use it when reading or translating a paper and unsure which Chinese term is standard, or when a translation must keep one term consistent.',
+      'Structured debugging and experiment-design helper: a prioritized checklist for repro / OOM / NaN problems plus an experiment-matrix template that enforces one-variable-at-a-time and keeps negative results as ablation material. Does not modify code.',
     parameters: {
-      query: { type: 'string', required: true, description: 'Term in English or Chinese, or a domain keyword such as 统计.' },
-      limit: { type: 'number', description: 'Maximum entries, 1-20 (default 6).' },
+      issue: { type: 'string', description: '报错摘要或问题类型，如 OOM / NaN / 无法复现' },
+      metric: { type: 'string', description: '主评价指标，如 mAP / Rank-1 / 准确率' },
+      scope: { type: 'string', description: '本次要试的变量，如 batch size / backbone' },
     },
     execute(args) {
-      return lookupGlossary({ query: args.query, limit: Number(args.limit) })
+      return debugReport({ issue: args.issue, metric: args.metric, scope: args.scope })
     },
   }))
 
   ctx.tools.register(makeTool({
     name: 'qingjin_check',
     description:
-      'Diagnose one paragraph against the section it belongs to: length, tense consistency, missing structural elements (CARS moves, abstract elements, numbers in results, limitations in discussion), overclaiming, vague words, long sentences, undefined abbreviations, and the C-C-C first/last sentence. ' +
-      'With section=translation it reviews a Chinese translation instead: numbers kept in Arabic numerals, untranslated English runs, terminology without its English at first use, long clauses, 的/被 density, punctuation mixing, CJK-Latin spacing, and constraint words that must not be reversed. ' +
-      'Returns a scored report with concrete fixes and reusable patterns.',
+      'Diagnose one paragraph for its section: length, tense, missing structural elements (CARS / abstract elements / numbers / limitations), overclaiming, vague words, long sentences, undefined abbreviations, C-C-C first/last sentence. section=translation reviews a Chinese translation (numbers, untranslated runs, terms, 的/被 density, CJK-Latin spacing). Returns a scored report with fixes.',
     parameters: {
       section: { type: 'string', required: true, description: 'abstract | introduction | methods | results | discussion | conclusion | translation' },
       text: { type: 'string', required: true, description: 'The paragraph (or section draft) to check.' },
+      compare: { type: 'string', description: 'Optional second text (source or counterpart) to cross-check numbers, terms and length ratio.' },
     },
     execute(args) {
-      return checkSection(String(args.section), String(args.text ?? ''))
+      return checkSection(String(args.section), String(args.text ?? ''), args.compare ? String(args.compare) : '')
     },
   }))
 }

@@ -6,7 +6,7 @@ description: 把 CCF-A 级研究写作与评审纪律压成一套可执行流程
 # CCF-A 研究流程（蒸馏版 · v2）
 
 > 来源：CCFA-Skills（MIT，© Chaoyue Li）。本文件是**压过的执行版**，不是原文复制；上游 18 个 SKILL.md、绘图库、配置台未包含。
-> 工具配套：`qingjin_workflow` / `qingjin_humanize` / `qingjin_check` / `qingjin_glossary` / `qingjin_related` / `qingjin_pdf_read` / `qingjin_export`。
+> 工具配套：`qingjin_flow(action=route)` / `qingjin_humanize` / `qingjin_check` / `qingjin_lookup(scope=glossary)` / `qingjin_related` / `qingjin_pdf_read` / `qingjin_export`。
 
 ## 30 秒决策
 
@@ -41,7 +41,7 @@ description: 把 CCF-A 级研究写作与评审纪律压成一套可执行流程
 | 画架构图/数据图 | 绘图 | 图 + 可复用源文件 | 不挑数据集与指标 |
 | 交稿前检查 | 投稿 | 模板/页数/匿名清单 | 不新增实验 |
 
-需要机器路由：`qingjin_workflow(task="...")`。
+需要机器路由：`qingjin_flow(action=route)(task="...")`。
 
 ## 2. 写作纪律
 
@@ -146,12 +146,12 @@ ledger：
 
 | 要做的事 | 调用 |
 |---|---|
-| 路由到阶段 | `qingjin_workflow` |
+| 路由到阶段 | `qingjin_flow(action=route)` |
 | 章节骨架 / 成稿模板 | `qingjin_outline` / `qingjin_template` |
 | 去 AI 味 | `qingjin_humanize` |
 | 段落结构 / 时态 / 数字 / 译文校核 | `qingjin_check` |
-| 术语标准译法 | `qingjin_glossary` |
-| 英文句式 | `qingjin_phrase` |
+| 术语标准译法 | `qingjin_lookup(scope=glossary)` |
+| 英文句式 | `qingjin_lookup(scope=phrase)` |
 | 同方向顶会论文 | `qingjin_related`（联网） |
 | 读 PDF / 导出 md+pdf | `qingjin_pdf_read` / `qingjin_export` |
 

@@ -7,9 +7,11 @@
 - **本地插件**：`private: true`，不走 npm；profile 里是 `link:` 依赖
 - **零依赖零构建**：纯 ESM + JSON 数据，安装不触发 build 脚本
 - **默认离线**：只有 `qingjin_related` 会联网，`QINGJIN_OFFLINE=1` 可彻底关掉
-- **11 个工具 / 13 个面板动作 / 9 份数据文件 / 1 个 skill**
+- **11 个工具 / 15 个面板动作 / 12 份数据文件 / 2 个 skill**
 
 ---
+
+> **双宿主合体包**：`dist/dsh-qingjin-dual-host-1.1.2.tgz` = DSH 插件 0.26.1 + WorkBuddy Skill 1.1.2，两个宿主共享同一套核心逻辑。
 
 ## 安装
 
@@ -31,7 +33,7 @@ github:wocao123103/dsh-qingjie#path:/dsh-qingjin
 
 完整上传与自检清单见 [GITHUB-UPLOAD.md](GITHUB-UPLOAD.md)；平台/工具链前置条件见 [docs/PREREQUISITES.md](docs/PREREQUISITES.md)。
 
-> 开发时也可以直接在插件页填 `C:\Users\84301\Desktop\书院育人活动\dsh-qingjin`——这是 `link:` 安装，改文件即改插件。
+> 开发时也可以在插件页填你自己的解压目录绝对路径——这是 `link:` 安装，改文件即改插件。
 
 ---
 
@@ -41,17 +43,17 @@ github:wocao123103/dsh-qingjie#path:/dsh-qingjin
 |---|---|---|
 | `qingjin_outline` | 章节骨架：目标、时态、篇幅预算、结构动作（IMRaD / CARS / C-C-C）、自查清单 | `kind=research` / `proposal` / 单节 |
 | `qingjin_template` | 可填写成稿模板：`md` 或**可编译的 LaTeX**（中文 ctexart / 英文 article） | `kind=paper, format=tex` |
-| `qingjin_phrase` | 按「章节 × 写作意图」检索英文句式，附中文用途与误用提醒 | `section=intro, intent=gap` |
+| `qingjin_lookup` | 统一查询入口：`scope=phrase` 英文句式 / `scope=glossary` 术语与误译 / `scope=rules` 骨架·排版·会议格式 | `scope=glossary, query=proof rate` |
 | `qingjin_pdf_read` | 读本地 PDF 抽正文，返回页数/字数/截断信息；无文字层的扫描版会明说 | `path=…pdf` |
 | `qingjin_related` | **唯一联网**：从一篇论文扩散到同方向论文，标 venue 等级（A/B 档）与开放获取链接 | `query=标题/DOI/关键词` |
-| `qingjin_workflow` | 把任务路由到 18 个研究阶段之一，并给出下一步与评审骨架 | `task="选题值不值得做"`、`mode=review` |
+| `qingjin_flow` | 多步任务状态机 + 任务路由：`start/advance/status` 推进流程，`route` 把任务分到 18 个研究阶段 | `action=route, task=…` |
+| `qingjin_debug` | 调试清单 + 实验矩阵模板（OOM / NaN / 复现） | `issue=NaN, metric=mAP` |
 | `qingjin_humanize` | 诊断模板句与防御性表达（10 类）+ 必须保留清单 | `text=段落` |
-| `qingjin_export` | 多引擎降级链把 `.md` 导成同名 `.pdf`：xelatex → typst → Word → Edge，并写明用了哪个 | `md=…md`、`engine=auto` |
-| `qingjin_rules` | 骨架规则 / 中英排版 / 四家会议格式 / SCI 排版 / 写作惯例 | `scope=venue, venue=cvpr` |
-| `qingjin_glossary` | 59 条术语的标准译法、其它译法与**常见误译** | `query=proof rate` |
+| `qingjin_export` | 多引擎降级链把 `.md` 导成同名 `.pdf`：xelatex → typst → Word → WPS → Edge；没有 pandoc 时先用内置 Markdown→LaTeX + xelatex 直连，只有浏览器时用内置 Markdown→HTML + Edge 打印（公式降级为源码），并写明用了哪个 | `md=…md`、`engine=auto` |
+| `qingjin_translate` | **中英互译教练**：zh2en / en2zh，给句式（取自 8 篇顶会论文）、术语、中式英语误例与检查清单 | `direction=zh2en, section=abstract, text=…` |
 | `qingjin_check` | 段落诊断（篇幅/时态/要素缺失/过强断言）；`section=translation` 转为译文校核 | `section=results, text=…` |
 
-## 右侧栏工作台（13 个动作）
+## 右侧栏工作台（15 个动作）
 
 输入框右侧「论文」按钮打开；面板顶部是大肥鱼吉祥物，蓝色主题，吸顶头部。
 
@@ -88,7 +90,7 @@ github:wocao123103/dsh-qingjie#path:/dsh-qingjin
 
 从 [CCFA-Skills](https://github.com/mikubaka88/CCFA-Skills)（MIT，© Chaoyue Li）蒸馏，文字改写、非原文复制：
 
-- `qingjin_workflow`：18 个研究阶段的分工与路由，`mode=review` 给七维评审 + 14/9/5 节骨架 + 四类发现 + 反证纪律；
+- `qingjin_flow` 的 `route` 动作：18 个研究阶段的分工与路由，`mode=review` 给七维评审 + 14/9/5 节骨架 + 四类发现 + 反证纪律；
 - `qingjin_humanize`：10 类模板句与 3 种标点指纹，每条给「为什么 + 怎么改」，并固定列「必须保留」；
 - **附带一份真正的 skill**：[skills/ccfa-research/SKILL.md](skills/ccfa-research/SKILL.md)（165 行），复制到 `~/.dsh/skills/` 或项目 `.dsh/skills/` 即可被 DSH 识别。
 
@@ -103,18 +105,53 @@ github:wocao123103/dsh-qingjie#path:/dsh-qingjin
 - **会议格式**：8 篇真实论文（CVPR / ECCV / AAAI / ICML）的实测版面
 - **英文句式**：自建模板集合；Manchester Academic Phrasebank 抓取不到正文且涉及版权，未复制
 
+## 实测样本（可追溯）
+
+8 篇样本的标题/会议/DOI 见 `data/sources.json`；其中 IDEA（CVPR 2025，10.1109/cvpr52734.2025.02765）与 INSPI（LNCS 版 10.1007/978-3-032-36984-0_31）已核对，其余标注“DOI 未核对”，不做猜测。
+
+## 自定义术语表
+
+同目录 `data/user-glossary.json`（或 `$DSH_HOME/qingjin/user-glossary.json`）可追加自己的术语，字段与 `glossary.json` 一致；同名（英文相同）以用户条目为准。改完重启 DSH 生效。
+
+## 核心价值：让你学会写，而不是替你写
+
+插件刻意不产出整篇成稿：它给骨架、句式、判据与诊断，成文由作者完成。这不是能力限制，而是设计目标——套模板能交一次作业，理解结构才能写下一篇。
+
 ## 边界与隐私
 
-- **不代写整篇论文**：只给结构、模板、表述选项与诊断，成文由作者完成。
+- **不代写整篇论文**（核心价值，不是免责）：给结构、模板、表述选项与诊断，成文由作者完成。
 - **不含文献检索平台抓取**：CNKI / 万方 / PubScholar 不做抓取，只走开放 API 与题录导入。
 - **扫描版 PDF 不 OCR**：无文字层会直接说明。
+- **状态文件**：`qingjin_flow` 会把流程进度写到 `$DSH_HOME/qingjin/flows.json`（Windows 默认在 DSH 数据目录下）；设 `QINGJIN_FLOW_STATE=off` 关闭落盘，或设成某个路径改位置。
+- **OPENALEX_API_KEY 说明**：OpenAlex 只接受查询串里的 `api_key`，所以 key 会出现在请求 URL 中；共享日志环境请勿设置，或改用独立 key。
 - **联网范围**：只有 `qingjin_related` 外发查询词；`QINGJIN_OFFLINE=1` 可完全关闭。
-- **PDF 依赖**：导出需要 pandoc + 任一引擎（xelatex / typst / Word / Edge）。引擎按链条自动降级并说明原因；全失败时逐条列出失败信息与安装建议，不会假装成功。
+- **PDF 依赖**：优先 pandoc + 任一引擎（xelatex / typst / Word / WPS / Edge）；没有 pandoc 时用内置 md→LaTeX + xelatex，只有浏览器时用内置 md→HTML + Edge 打印（公式降级为源码）。引擎按链条自动降级并说明原因；全失败时逐条列出失败信息与安装建议，不会假装成功。
 
 ## 版本记录
 
 | 版本 | 内容 |
 |---|---|
+| 1.1.2 | **最终版**：双宿主合体发布（DSH 插件 + WorkBuddy Skill 共用 1.1.2）；含 PDF 三档可信度、Edge 直连导出、跨学科互译 |
+| 0.26.1 | 收口 0.26 五项 P3：md2html 表格与段落、空文档拒绝、文档口径、短文本字符数 |
+| 0.26.0 | 收口 0.25 P3：翻译清单空行、短文本参数提示、短文本结构信号、venue 缩写、只有浏览器时的 Edge 直连导出 |
+| 0.25.0 | PDF 可信度分级（结构信号 + 多窗口 + 三档返回）；translate 章节映射；统一路径与 UA |
+| 0.24.0 | 按 0.23.0 汇总修复：smoke 白名单、export 文件校验、PDF 乱码体检、EN Debug 文案、P3 长尾 |
+| 0.23.0 | 按问题汇总修 P0 崩溃（translate 方向、flow id 撞车）与 P1（export 校验顺序、重复一致性块、BOM、PDF 误诊、大小写） |
+| 0.22.0 | 补上四版未进包的用户术语表去重（homedir + new Map）；flow 错误提示补 route；sources.json 标题修正 |
+| 0.21.0 | `check` 新增 `compare`：跨段核对数字、术语、篇幅比（ReID 摘要实测能抓到漏掉的 83.9） |
+| 0.20.0 | 按权重优化高价值功能：`pdf_read` 支持 `find=` 按词定位并给页码；术语表无 query 时按领域浏览 |
+| 0.19.1 | `qingjin_workflow` 并入 `qingjin_flow(action=route)`；描述与参数精简，固定开销 5,025→4,437 |
+| 0.19.0 | 引文页码定位（page=N + 页码提示）；新增 data/sources.json；面板加「调试排查」入口 |
+| 0.18.2 | 修复中英互译按钮接错工具、用户术语表未生效、pdftotext 丢页码；文档计数与术语数对齐 |
+| 0.18.1 | 价值修正：模板定位为脚手架、不代写正向表述、flow 状态可关闭、related 提示配额 |
+| 0.18.0 | 按补丁报告修复 P0（大小写、悬空工具名、UI id 冲突）+ pdftotext 抽取链 + 路径可移植 + `qingjin_debug` |
+| 0.17.1 | 新增教材领域（textbook）：从 4 本英文教材提取定义/推导/近似/习题句式，术语表扩到 75 条 |
+| 0.17.0 | 中英互译支持跨学科（bio/chem/math/physics），语料来自 4 篇 GitHub 论文；新增跨学科语法学习笔记 |
+| 0.16.0 | 新增中英互译方向（`qingjin_translate` + skill）；合并三个查询工具为 `qingjin_lookup`；精简描述，固定开销 5,348→4,657 |
+| 0.15.0 | 新增 `qingjin_flow`：把多步任务固定成 5 步状态机，按需只调当前步的工具 |
+| 0.14.0 | 补 WPS 引擎（Kwps COM）、无 pandoc 兜底（内置 md→LaTeX）、arXiv 标预印本、LNCS 说明 |
+| 0.13.1 | 全功能过一遍（INSPI/ECCV）：补 ECCV 等级、LNCS 标注、A/B 无结果自动放宽、路由补精读、摘要 propose 识别、PDF 时 π 等希腊字母丢失 |
+| 0.13.0 | 按第三方检测报告修复：outline NaN、中文分词、arXiv 种子、降级提示、humanize 封顶、smoke 可移植 |
 | 0.12.1 | 仓库地址对齐为 dsh-qingjie，安装命令补 #path: 变通写法 |
 | 0.12.0 | 导出支持四引擎降级链（xelatex / typst / Word / Edge），逐个实测 |
 | 0.11.4 | 新增前置条件清单（平台/工具链/验证步骤） |

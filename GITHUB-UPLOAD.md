@@ -54,8 +54,8 @@ github:wocao123103/dsh-qingjie#path:/dsh-qingjin
    - 不要勾 "Add a README"（本地已有）
 2. 创建后点 **uploading an existing file**；
 3. 把 `dsh-qingjin/` 里的**全部内容**拖进去（保持目录结构，`lib/`、`data/`、`locale/`、`docs/` 都要）；
-4. Commit message 写 `feat: v0.9.2 首次发布`；
-5. 打一个 Release（可选但推荐）：**Releases → Draft a new release** → tag `v0.9.2` → 把 `dist/wocao123103-dsh-qingjin-0.9.2.tgz` 作为附件上传。
+4. Commit message 写 `feat: v0.26.1 首次发布`；
+5. 打一个 Release（可选但推荐）：**Releases → Draft a new release** → tag `v1.1.2` → 把 `dist/dsh-qingjin-dual-host-1.1.2.tgz` 作为附件上传。
 
 > 如果你之后装了 Git for Windows，可以直接 `git init` + `git remote add` + push，省去逐个拖拽。
 
@@ -64,7 +64,7 @@ github:wocao123103/dsh-qingjie#path:/dsh-qingjin
 ## 四、上传后自检清单
 
 - [ ] 仓库根目录能直接看到 `package.json` 与 `cordis.patch.yml`
-- [ ] `package.json` 的 `version` 与 Release tag 一致（0.12.1）
+- [ ] `package.json` 的 `version` 与 Release tag 一致（1.1.2）
 - [ ] `files` 列表里的目录都真的在仓库里：`index.js`、`client.js`、`data`、`lib`、`locale`、`docs`、`icon.svg`
 - [ ] `.gitignore` 已排除 `node_modules/`、`*.tgz`、测试目录
 - [ ] 仓库是 Public
@@ -75,8 +75,8 @@ github:wocao123103/dsh-qingjie#path:/dsh-qingjin
 ## 五、别人装完会看到什么
 
 - 插件页出现 **青衿科研**，输入框右侧出现「论文」按钮；
-- 右侧栏「青衿科研」工作台，11 个动作；
-- 9 个工具：骨架 / 模板 / 句式 / PDF 精读 / 同方向顶刊 / 导出 PDF / 规则 / 术语 / 自检；
+- 右侧栏「青衿科研」工作台，15 个动作；
+- 11 个工具：骨架 / 模板 / 查询（术语·句式·格式）/ 中英互译 / PDF 精读 / 同方向检索 / 去 AI 味 / 流程状态机 / 导出 PDF / 调试排查 / 段落与译文自检；
 - 除「同方向顶刊」外全部离线；`QINGJIN_OFFLINE=1` 可彻底断网。
 
 ---

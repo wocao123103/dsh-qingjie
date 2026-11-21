@@ -1,4 +1,4 @@
-﻿window.__ModuleLoader__.load({
+window.__ModuleLoader__.load({
   id: '@wocao123103/dsh-qingjin',
   factory(require) {
     const React = require('react')
@@ -6,7 +6,7 @@
 
     const KIND = 'qingjin'
     const TAB_ID = '@wocao123103/dsh-qingjin/panel'
-    const CLIENT_VERSION = 'v0.12.1'
+    const CLIENT_VERSION = 'v1.1.2'
 
     // 蓝色为主、暖橙作点缀的“大肥鱼”配色。all values are self-contained so the
     // panel keeps its identity in both light and dark shells.
@@ -20,8 +20,6 @@
       belly: '#f7fbfe',
     }
 
-    const isZh = () => true // replaced at apply time from the Client locale service
-
     const ZH_COPY = {
         tab: '青衿科研',
         launch: '论文',
@@ -32,11 +30,13 @@
           { id: 'outline', label: '论文骨架', placeholder: '题目或研究方向，例如：基于视觉的船舶焊缝缺陷检测' },
           { id: 'proposal', label: '大创申报书', placeholder: '项目方向，例如：海洋工程' },
           { id: 'template-md', label: '论文模板', placeholder: '题目；会生成可填写的 Markdown 成稿模板' },
-          { id: 'template-tex', label: 'LaTeX 模板', placeholder: '题目；会生成可编译的 .tex 并用 latex_look 检查版面' },
+          { id: 'template-tex', label: 'LaTeX 模板', placeholder: '题目；会生成可编译的 .tex，并可用 qingjin_export 导出 PDF 核对版面' },
           { id: 'phrase', label: '英文句式', placeholder: '可留空；或写你要表达的意图，例如：指出研究空白' },
           { id: 'glossary', label: '术语对照', placeholder: '中英文均可，例如 proof rate 或 混合执行' },
-          { id: 'check', label: '段落自检', placeholder: '粘贴一段要检查的文字（建议 100 词以上）' },
-          { id: 'translate', label: '译文校核', placeholder: '粘贴你翻好的中文译文，核对数字、术语与比较方向' },
+    { id: 'zh-en', label: '中英互译', placeholder: '粘贴中文稿或英文段落；说明要中译英还是英译中' },
+          { id: 'debug', label: '调试排查', placeholder: '报错摘要或问题类型，例如 训练出现 NaN / OOM / 无法复现' },
+    { id: 'check', label: '段落自检', placeholder: '粘贴一段要检查的文字（建议 100 词以上）' },
+          { id: 'translation-check', label: '译文校核', placeholder: '粘贴你翻好的中文译文，核对数字、术语与比较方向' },
           { id: 'rules', label: '骨架与排版', placeholder: '规则说明，无需输入' },
           { id: 'workflow', label: '任务分工', placeholder: '描述你现在的任务，例如：这个选题值不值得做' },
           { id: 'humanize', label: '去 AI 味', placeholder: '粘贴一段你自己写的正文，诊断模板句与防御性表达' },
@@ -60,11 +60,13 @@
           { id: 'outline', label: 'Paper outline', placeholder: 'Title or direction, e.g. vision-based weld defect detection' },
           { id: 'proposal', label: 'Proposal', placeholder: 'Project direction' },
           { id: 'template-md', label: 'Draft template', placeholder: 'Title; generates a fill-in Markdown draft' },
-          { id: 'template-tex', label: 'LaTeX template', placeholder: 'Title; generates a compile-ready .tex and checks it with latex_look' },
+          { id: 'template-tex', label: 'LaTeX template', placeholder: 'Title; generates a compile-ready .tex and verifies it with qingjin_export' },
           { id: 'phrase', label: 'English phrases', placeholder: 'Optional: what you want to express' },
           { id: 'glossary', label: 'Terminology', placeholder: 'English or Chinese, e.g. proof rate' },
-          { id: 'check', label: 'Paragraph check', placeholder: 'Paste a paragraph to check (100+ words)' },
-          { id: 'translate', label: 'Translation check', placeholder: 'Paste your Chinese translation to verify numbers, terms and comparison direction' },
+    { id: 'zh-en', label: 'Translate', placeholder: 'Paste a Chinese draft or an English paragraph; say which direction' },
+          { id: 'check', label: 'Paragraph check', placeholder: 'Paste a paragraph to check (100+ words preferred)' },
+    { id: 'debug', label: 'Debug', placeholder: 'Error summary or issue type, e.g. NaN loss / OOM / cannot reproduce' },
+          { id: 'translation-check', label: 'Translation check', placeholder: 'Paste your Chinese translation to verify numbers, terms and comparison direction' },
           { id: 'rules', label: 'Rules', placeholder: 'Reference only, no input needed' },
           { id: 'workflow', label: 'Route task', placeholder: 'Describe the task, e.g. is this idea worth pursuing?' },
           { id: 'humanize', label: 'De-AI prose', placeholder: 'Paste a paragraph you wrote; find template phrases and defensive framing' },
@@ -198,26 +200,41 @@
       }
       if (mode === 'template-tex') {
         return value
-          ? `用 qingjin_template（kind=paper, format=tex）生成 LaTeX 论文模板，题目：${value}，写成 main.tex，然后用 latex_look 编译检查版面。`
-          : '用 qingjin_template（kind=paper, format=tex）生成 LaTeX 论文模板，写成 main.tex 并用 latex_look 检查。'
+          ? `用 qingjin_template（kind=paper, format=tex）生成 LaTeX 论文模板，题目：${value}，写成 main.tex，然后用 qingjin_export 导出 PDF 核对版面（无引擎时如实说明）。`
+          : '用 qingjin_template（kind=paper, format=tex）生成 LaTeX 论文模板，写成 main.tex，并用 qingjin_export 导出核对版面。'
       }
       if (mode === 'phrase') {
         return value
-          ? `用 qingjin_phrase 给我几句英文句式，意图是：${value}，section=intro。`
-          : '用 qingjin_phrase 给我几句指出研究空白的英文句式，section=intro, intent=gap。'
+          ? `用 qingjin_lookup(scope=phrase, section=intro) 给我几句英文句式，意图是：${value}。`
+          : '用 qingjin_lookup(scope=phrase, section=intro, intent=gap) 给我几句指出研究空白的英文句式。'
       }
       if (mode === 'glossary') {
         return value
-          ? `用 qingjin_glossary 查这几个术语的标准中文译法和常见误译：${value}。`
-          : '用 qingjin_glossary 给我几个写论文最常用的术语对照，中英各列一栏。'
+          ? `用 qingjin_lookup(scope=glossary) 查这几个术语的标准中文译法和常见误译：${value}。`
+          : '用 qingjin_lookup(scope=glossary) 给我几个写论文最常用的术语对照，中英各列一栏。'
       }
-      if (mode === 'translate') {
+      if (mode === 'zh-en') {
+        return value
+          ? `用 qingjin_translate（根据内容判断 direction=zh2en 或 en2zh，section 按 abstract/introduction/… 选）给我的这段文字做中英互译：先给方向与章节判断，再给句式、术语对照和中文/英文误例，不要直接输出整段译文：\n\n${value}`
+          : '用 qingjin_translate 把我下一段文字做中英互译：先判断方向与所属章节，再给可套句式、术语和常见误例。'
+      }
+      if (mode === 'translation-check') {
         return value
           ? `用 qingjin_check（section=translation）校核这段译文，重点看数字、术语与比较方向：\n\n${value}`
           : '用 qingjin_check（section=translation）校核我接下来贴的中文译文。'
       }
+      if (mode === 'debug') {
+        return value
+          ? `用 qingjin_debug 帮我排查这个问题，主指标与本次要试的变量如下：\n\n${value}`
+          : '用 qingjin_debug 给我一份排查清单和实验矩阵模板（OOM / NaN / 无法复现）。'
+      }
+      if (mode === 'check') {
+        return value
+          ? `用 qingjin_check 检查这段文字；先让我确认它属于哪一节（abstract/introduction/methods/results/discussion/conclusion），再按该节标准打分并给修改建议：\n\n${value}`
+          : '用 qingjin_check 检查我接下来贴的段落；先确认它属于哪一节。'
+      }
       if (mode === 'rules') {
-        return '用 qingjin_rules 输出完整的骨架生成规则、中英文排版规则与 LaTeX 模板默认设置。'
+        return '用 qingjin_lookup(scope=rules) 输出完整的骨架生成规则、中英文排版规则与 LaTeX 模板默认设置。'
       }
       if (mode === 'related') {
         return value
@@ -226,8 +243,8 @@
       }
       if (mode === 'workflow') {
         return value
-          ? `用 qingjin_workflow 帮我把这个任务分到对应阶段并给出下一步：${value}\n如果涉及评审，用 mode=review 的七维骨架；涉及投稿，用 mode=venues 对一下 CVPR/ICLR/AAAI 的差异。`
-          : '用 qingjin_workflow 列出 18 个技能的分工，让我挑一个现在的任务。'
+          ? `用 qingjin_flow（action=route）帮我把这个任务分到对应阶段并给出下一步：${value}\n如果涉及评审，用 mode=review 的七维骨架；涉及投稿，用 mode=venues 对一下 CVPR/ICLR/AAAI 的差异。`
+          : '用 qingjin_flow（action=route）列出 18 个技能的分工，让我挑一个现在的任务。'
       }
       if (mode === 'humanize') {
         return value
@@ -236,11 +253,11 @@
       }
       if (mode === 'pdf') {
         return value
-          ? `精读这个 PDF：${value}\n用 qingjin_pdf_read 读全文，写成一篇完整的中文精读文章（1500–3000 字），结构：一句话结论 / 研究问题与动机 / 方法拆解（每条配原文英文短引+中译）/ 实验与数据 / 主要结果（表格）/ 贡献 / 局限 / 与同方向工作的位置（可用 qingjin_related 补 2–3 篇对照）/ 可复用写作句式 / 术语表。\n把文章存成 精读-短标题.md，放在该 PDF 的同一个文件夹；再用 qingjin_export 生成同名 .pdf，最后把两个路径都告诉我。元信息用列表写，不要用引用块。`
+          ? `精读这个 PDF：${value}\n用 qingjin_pdf_read 读全文，写成一篇完整的中文精读文章（1500–3000 字），结构：一句话结论 / 研究问题与动机 / 方法拆解（每条配原文英文短引+中译）/ 实验与数据 / 主要结果（表格）/ 贡献 / 局限 / 与同方向工作的位置（可用 qingjin_related 补 2–3 篇对照）/ 可复用写作句式 / 术语表。\n把文章存成 精读-短标题.md，放在该 PDF 的同一个文件夹；再用 qingjin_export 尝试生成同名 .pdf——如果本机缺少 pandoc 或可用引擎，就只交付 .md，并明确说明缺哪个依赖、怎么装，不要声称 PDF 已生成。元信息用列表写，不要用引用块。`
           : '我想精读一篇论文 PDF：告诉我该把文件放哪、路径怎么写，然后我给出完整精读文章（md + pdf，放在原文同目录）。'
       }
       return value
-        ? `用 qingjin_check 检查这段文字，section=results：\n\n${value}`
+        ? `用 qingjin_check 检查这段文字；先判断它属于哪一节（abstract/introduction/methods/results/discussion/conclusion），再按该节标准打分：\n\n${value}`
         : '用 qingjin_check 检查我接下来贴的段落；先告诉我应该归到哪一节（abstract/introduction/methods/results/discussion/conclusion/translation）。'
     }
 
@@ -382,6 +399,7 @@
           ? rulesBlock
           : h('textarea', {
             style: styles.input,
+            'aria-label': active.label,
             value: text,
             placeholder: active.placeholder,
             onChange: (event) => { setText(event.target.value); setStatus('') },
